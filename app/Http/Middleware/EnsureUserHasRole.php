@@ -44,9 +44,11 @@ class EnsureUserHasRole
                 sprintf('%s was denied access to %s %s (requires: %s).', $user->name, $request->method(), $request->path(), implode(', ', $allowed)),
             );
 
-            $message = $current === UserRole::Staff->value
-                ? 'You do not have permission to access that area. Administrator access is required.'
-                : 'You do not have permission to perform that action.';
+            $message = match ($current) {
+                UserRole::Staff->value => 'You do not have permission to access that area. Administrator access is required.',
+                UserRole::Admin->value => 'Selling is limited to cashier accounts. Ask a staff member to ring up this sale.',
+                default => 'You do not have permission to perform that action.',
+            };
 
             if ($request->expectsJson()) {
                 return response()->json(['message' => $message], Response::HTTP_FORBIDDEN);

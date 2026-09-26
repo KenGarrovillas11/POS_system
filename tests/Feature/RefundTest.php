@@ -331,9 +331,10 @@ class RefundTest extends TestCase
     public function test_order_history_can_be_filtered_by_status_and_method(): void
     {
         $admin = User::factory()->admin()->create();
+        $cashier = User::factory()->staff()->create();
         $product = Product::factory()->priced(1, 2)->create(['stock' => 50]);
 
-        $this->placeOrder($admin, $product, $product);
+        $this->placeOrder($cashier, $product, $product);
 
         $order = Order::sole();
         $order->forceFill(['payment_method' => PaymentMethod::Card])->save();

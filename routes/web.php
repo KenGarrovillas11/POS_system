@@ -51,10 +51,14 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------------------------------------------------------------------
-    | Point of sale - admin and staff
+    | Point of sale - cashiers only
     |----------------------------------------------------------------------
+    | Selling is a cashier responsibility: an administrator who can ring up
+    | sales can also edit the products, prices and stock behind them, which
+    | makes the cashier attribution on reports meaningless. Admins keep
+    | full oversight through orders, inventory and the reports instead.
     */
-    Route::prefix('pos')->name('pos.')->group(function () {
+    Route::middleware('role:staff')->prefix('pos')->name('pos.')->group(function () {
         Route::get('/', [PosController::class, 'index'])->name('index');
         Route::get('search', [PosController::class, 'search'])->name('search');
         Route::post('cart', [PosController::class, 'store'])->name('cart.store');
@@ -63,7 +67,6 @@ Route::middleware('auth')->group(function () {
         Route::delete('cart', [PosController::class, 'clear'])->name('cart.clear');
         Route::post('cart/discount', [PosController::class, 'discount'])->name('cart.discount');
         Route::post('checkout', [PosController::class, 'checkout'])->name('checkout');
-        Route::get('orders/{order}/receipt', [OrderController::class, 'receipt'])->name('receipt');
     });
 
     /*

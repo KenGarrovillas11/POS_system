@@ -225,7 +225,7 @@ class PosController extends Controller
         $this->cart->clear();
 
         return redirect()
-            ->route('pos.receipt', $order)
+            ->route('orders.receipt', $order)
             ->with('success', sprintf('Sale completed - order %s.', $order->order_number));
     }
 }

@@ -13,9 +13,11 @@
         @endforeach
     </div>
 
-    <a href="{{ route('pos.index') }}" class="btn btn-sm btn-success ms-auto">
-        <i class="bi bi-cash-coin me-1"></i>New Sale
-    </a>
+    @if (auth()->user()->isStaff())
+        <a href="{{ route('pos.index') }}" class="btn btn-sm btn-success ms-auto">
+            <i class="bi bi-cash-coin me-1"></i>New Sale
+        </a>
+    @endif
 </div>
 
 <div class="row g-3 mb-3">

@@ -48,7 +48,7 @@ class CheckoutTest extends TestCase
         $order = Order::sole();
 
         // 3 x 10.00 = 30.00 subtotal + 10% tax = 33.00 total, 7.00 change.
-        $checkout->assertRedirect(route('pos.receipt', $order));
+        $checkout->assertRedirect(route('orders.receipt', $order));
         $checkout->assertSessionHas('success');
 
         $this->assertSame('completed', $order->status->value);
@@ -210,7 +210,7 @@ class CheckoutTest extends TestCase
         $order = Order::sole();
 
         $this->actingAs($cashier)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk()
             ->assertSee($order->order_number)
             ->assertSee($product->name);

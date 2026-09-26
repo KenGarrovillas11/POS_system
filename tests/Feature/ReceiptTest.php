@@ -42,7 +42,7 @@ class ReceiptTest extends TestCase
         $createdAt = Carbon::parse('2026-03-14 19:26:45');
         $order->forceFill(['created_at' => $createdAt, 'updated_at' => $createdAt])->save();
 
-        $response = $this->actingAs($cashier)->get(route('pos.receipt', $order));
+        $response = $this->actingAs($cashier)->get(route('orders.receipt', $order));
 
         $response->assertOk()
             ->assertSee('Date', false)
@@ -65,7 +65,7 @@ class ReceiptTest extends TestCase
             $expected = Carbon::parse($stamp);
 
             $this->actingAs($cashier)
-                ->get(route('pos.receipt', $order))
+                ->get(route('orders.receipt', $order))
                 ->assertOk()
                 ->assertSee($expected->format('d M Y'))
                 ->assertSee($expected->format('g:i A'));
@@ -89,7 +89,7 @@ class ReceiptTest extends TestCase
             ->format('g:i A');
 
         $this->actingAs($cashier)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk()
             ->assertSee($rendered);
     }
@@ -106,10 +106,10 @@ class ReceiptTest extends TestCase
             // Same stored wall-clock string, two zones: the printed time must
             // follow the configured zone rather than being pinned to UTC.
             config(['app.timezone' => 'Asia/Manila']);
-            $manila = $this->actingAs($cashier)->get(route('pos.receipt', $order))->getContent();
+            $manila = $this->actingAs($cashier)->get(route('orders.receipt', $order))->getContent();
 
             config(['app.timezone' => 'UTC']);
-            $utc = $this->actingAs($cashier)->get(route('pos.receipt', $order))->getContent();
+            $utc = $this->actingAs($cashier)->get(route('orders.receipt', $order))->getContent();
         } finally {
             config(['app.timezone' => $original]);
         }
@@ -148,7 +148,7 @@ class ReceiptTest extends TestCase
         $order = $this->sell($cashier, $product, quantity: 2);
 
         $this->actingAs($cashier)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk()
             ->assertSee('88 Minimart')
             ->assertSee('Zone 6, Bangued')
@@ -179,7 +179,7 @@ class ReceiptTest extends TestCase
         ])->save();
 
         $this->actingAs($admin)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk()
             ->assertSee('CANCELLED')
             ->assertSee('Customer changed mind')
@@ -205,7 +205,7 @@ class ReceiptTest extends TestCase
         $order->refresh();
 
         $this->actingAs($admin)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk()
             ->assertSee('Refunded')
             ->assertSee('NET')
@@ -222,11 +222,11 @@ class ReceiptTest extends TestCase
         $order = $this->sell($bruno, $product);
 
         $this->actingAs($alice)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertForbidden();
 
         $this->actingAs($bruno)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk();
     }
 
@@ -252,7 +252,7 @@ class ReceiptTest extends TestCase
         $order = $this->sell($cashier, $product);
 
         $this->actingAs($cashier)
-            ->get(route('pos.receipt', $order))
+            ->get(route('orders.receipt', $order))
             ->assertOk()
             ->assertSee('receipt-item-name', false)
             ->assertSee('receipt-line', false);

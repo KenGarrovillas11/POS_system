@@ -28,9 +28,11 @@
             <a href="{{ route('orders.show', $order) }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-1"></i>Back to Order
             </a>
-            <a href="{{ route('pos.index') }}" class="btn btn-success">
-                <i class="bi bi-plus-circle me-1"></i>New Sale
-            </a>
+            @if (auth()->user()->isStaff())
+                <a href="{{ route('pos.index') }}" class="btn btn-success">
+                    <i class="bi bi-plus-circle me-1"></i>New Sale
+                </a>
+            @endif
         </div>
     </div>
 
