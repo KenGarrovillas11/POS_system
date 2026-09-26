@@ -9,7 +9,8 @@ A point-of-sale and inventory management application built with Laravel 12, Boot
 - **Inventory** - stock-in, stock-out and absolute adjustments, a filterable movement log, low-stock and out-of-stock alerts, CSV export.
 - **Refunds and cancellations** - partial or full refunds per line item, restocking of returned units, and order cancellation with automatic restock.
 - **Reports** - sales, revenue and inventory reports with date ranges, previous-period comparison, per-day/payment-method/cashier breakdowns and CSV exports.
-- **Administration** - product and category CRUD, staff accounts, store settings (currency, tax rate, receipt footer) and a searchable audit log.
+- **Administration** - product and category CRUD, product photos, staff accounts, store settings (currency, tax rate, receipt footer) and a searchable audit log.
+- **Local time** - every timestamp is stored and printed in the store's own timezone (`APP_TIMEZONE`), so receipts, reports and the dashboard show the wall-clock time a sale actually happened.
 - **Roles** - `admin` and `staff`, enforced by the `role:admin` middleware, which records every denied attempt.
 - **Profit tracking** - the dashboard breaks down every product by cost price, selling price, quantity and total profit (`(selling - cost) x quantity`), with total cost, total sales, profit margin and a red loss treatment for anything sold below cost. Two views are shown: what the selected period actually earned, and what the current stock would earn.
 
@@ -37,9 +38,15 @@ php artisan key:generate
 #    DB_DATABASE=pos_system
 #    DB_USERNAME=root
 #    DB_PASSWORD=
+#
+# 4. Set the store's timezone so receipts and reports show local time
+#    APP_TIMEZONE=Asia/Manila
 
-# 4. Schema plus demo data
+# 5. Create the schema and demo data
 php artisan migrate:fresh --seed
+
+# 6. Expose uploaded product images over HTTP
+php artisan storage:link
 ```
 
 Serve it from the XAMPP document root (`http://localhost/Pos`) or run:

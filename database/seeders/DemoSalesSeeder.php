@@ -63,7 +63,19 @@ class DemoSalesSeeder extends Seeder
                 }
 
                 $method = $methods[array_rand($methods)];
-                $stamp = $date->copy()->setTime(random_int(9, 20), random_int(0, 59));
+
+                // Trading hours are 09:00-20:00, but today's sales must not land
+                // in the future, otherwise the dashboard counts money that has
+                // not been taken yet.
+                $latestHour = $date->isToday() ? min(20, (int) now()->format('G')) : 20;
+                $stamp = $date->copy()->setTime(
+                    random_int(9, max(9, $latestHour)),
+                    random_int(0, 59),
+                );
+
+                if ($date->isToday() && $stamp->isFuture()) {
+                    $stamp = now()->subMinutes(random_int(1, 90));
+                }
 
                 try {
                     $order = $orders->checkout(
