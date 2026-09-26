@@ -59,6 +59,10 @@
 <div class="row g-3">
     <div class="col-lg-4">
         <div class="card mb-3">
+            @if ($product->hasImage())
+                <img src="{{ $product->imageUrl() }}" alt="{{ $product->name }}"
+                     class="card-img-top" style="aspect-ratio:4/3;object-fit:cover;">
+            @endif
             <div class="card-header">Details</div>
             <div class="card-body">
                 <dl class="row mb-0 small">

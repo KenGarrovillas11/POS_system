@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -18,6 +19,7 @@ class Product extends Model
     protected $fillable = [
         'category_id',
         'name',
+        'image_path',
         'description',
         'cost_price',
         'selling_price',
@@ -95,6 +97,41 @@ class Product extends Model
     public function isOutOfStock(): bool
     {
         return $this->stock <= 0;
+    }
+
+    public function hasImage(): bool
+    {
+        return filled($this->image_path);
+    }
+
+    /**
+     * Public URL of the product photo, or null when none has been uploaded.
+     *
+     * Built from the current request root rather than the disk's configured
+     * APP_URL, so photos resolve whether the app is served by Apache or by
+     * `php artisan serve` on a different host and port.
+     */
+    public function imageUrl(): ?string
+    {
+        if (! $this->hasImage()) {
+            return null;
+        }
+
+        return asset('storage/'.$this->image_path);
+    }
+
+    /**
+     * Delete the stored photo, if any. Safe to call twice.
+     */
+    public function deleteImage(): void
+    {
+        if (! $this->hasImage()) {
+            return;
+        }
+
+        Storage::disk('public')->delete($this->image_path);
+
+        $this->forceFill(['image_path' => null])->save();
     }
 
     public function getMarginAttribute(): float

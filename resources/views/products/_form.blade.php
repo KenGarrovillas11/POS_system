@@ -4,27 +4,74 @@
 @endphp
 
 <div class="row g-3">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="mb-3">
-            <label for="category_id" class="form-label">Category</label>
-            <select class="form-select @error('category_id') is-invalid @enderror" id="category_id" name="category_id">
-                <option value="">Uncategorised</option>
-                @foreach ($categories as $category)
-                    <option value="{{ $category->id }}" @selected(old('category_id', $product->category_id) == $category->id)>
-                        {{ $category->name }}
-                    </option>
-                @endforeach
-            </select>
-            @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <label for="image" class="form-label">Product Image</label>
+            <div class="text-center mb-2">
+                @if ($product->hasImage())
+                    <img src="{{ $product->imageUrl() }}" alt="{{ $product->name }}"
+                         id="imagePreview"
+                         class="img-thumbnail rounded-3"
+                         style="width:100%;max-width:180px;aspect-ratio:1/1;object-fit:cover;"
+                         data-existing="1">
+                @else
+                    <img src="" alt=""
+                         id="imagePreview"
+                         class="img-thumbnail rounded-3 d-none"
+                         style="width:100%;max-width:180px;aspect-ratio:1/1;object-fit:cover;">
+                @endif
+            </div>
+            <input type="file" class="form-control form-control-sm @error('image') is-invalid @enderror"
+                   id="image" name="image" accept="image/jpeg,image/png,image/webp">
+            <div class="form-text">JPG, PNG or WebP up to 2&nbsp;MB.</div>
+            @error('image')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+            @if ($product->hasImage())
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="remove_image" value="1" id="remove_image"
+                           @checked(old('remove_image'))>
+                    <label class="form-check-label small" for="remove_image">Remove current image</label>
+                </div>
+            @endif
         </div>
     </div>
 
-    <div class="col-md-8">
-        <div class="mb-3">
-            <label for="name" class="form-label">Product Name <span class="text-danger">*</span></label>
-            <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name"
-                   value="{{ old('name', $product->name) }}" required maxlength="255">
-            @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    <div class="col-md-9">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="category_id" class="form-label">Category</label>
+                    <select class="form-select @error('category_id') is-invalid @enderror" id="category_id" name="category_id">
+                        <option value="">Uncategorised</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}" @selected(old('category_id', $product->category_id) == $category->id)>
+                                {{ $category->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Product Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name"
+                           value="{{ old('name', $product->name) }}" required maxlength="255">
+                    @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-12">
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea class="form-control @error('description') is-invalid @enderror" id="description"
+                              name="description" rows="3" maxlength="2000">{{ old('description', $product->description) }}</textarea>
+                    @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -83,13 +130,6 @@
     </div>
 </div>
 
-<div class="mb-3">
-    <label for="description" class="form-label">Description</label>
-    <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description"
-              rows="3" maxlength="2000">{{ old('description', $product->description) }}</textarea>
-    @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
-</div>
-
 <div class="form-check form-switch mb-3">
     <input class="form-check-input" type="checkbox" role="switch" id="is_active" name="is_active" value="1"
            @checked(old('is_active', $product->is_active ?? true))>
@@ -98,3 +138,37 @@
     </label>
     @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
 </div>
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    const input = document.getElementById('image');
+    const preview = document.getElementById('imagePreview');
+    if (!input || !preview) return;
+
+    const remove = document.getElementById('remove_image');
+
+    input.addEventListener('change', function () {
+        const file = input.files && input.files[0];
+        if (!file) return;
+
+        preview.src = URL.createObjectURL(file);
+        preview.classList.remove('d-none');
+
+        // Picking a new photo means keeping it, so clear the remove flag.
+        if (remove) remove.checked = false;
+    });
+
+    if (remove) {
+        remove.addEventListener('change', function () {
+            if (!remove.checked) return;
+
+            preview.classList.add('d-none');
+            input.value = '';
+        });
+    }
+})();
+</script>
+@endpush

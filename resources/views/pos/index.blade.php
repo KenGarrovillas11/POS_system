@@ -54,9 +54,14 @@
                              role="button" tabindex="0"
                              aria-disabled="{{ $product->isOutOfStock() ? 'true' : 'false' }}">
                             <div class="card-body p-2 text-center">
-                                <span class="product-thumb mb-2" style="width:44px;height:44px;">
-                                    {{ strtoupper(mb_substr($product->name, 0, 2)) }}
-                                </span>
+                                @if ($product->hasImage())
+                                    <img src="{{ $product->imageUrl() }}" alt="{{ $product->name }}" loading="lazy"
+                                         class="rounded-2 mb-2" style="width:44px;height:44px;object-fit:cover;">
+                                @else
+                                    <span class="product-thumb mb-2" style="width:44px;height:44px;">
+                                        {{ strtoupper(mb_substr($product->name, 0, 2)) }}
+                                    </span>
+                                @endif
                                 <div class="small fw-semibold text-truncate" title="{{ $product->name }}">{{ $product->name }}</div>
                                 <div class="fw-bold mt-1 money">{{ \App\Models\Setting::money($product->selling_price) }}</div>
 

@@ -28,6 +28,8 @@ class ProductRequest extends FormRequest
             'low_stock_threshold' => ['required', 'integer', 'min:0', 'max:1000000'],
             'unit' => ['required', 'string', 'max:20'],
             'is_active' => ['nullable', 'boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_image' => ['nullable', 'boolean'],
         ];
     }
 
@@ -40,6 +42,15 @@ class ProductRequest extends FormRequest
                     'The selling price is below the cost price. Please confirm this is intended.',
                 );
             }
+
+            // A new upload wins over the remove checkbox, so warn instead of
+            // silently discarding the file the user just picked.
+            if ($this->hasFile('image') && $this->boolean('remove_image')) {
+                $validator->errors()->add(
+                    'image',
+                    'Tick "remove image" without choosing a new file, or choose a new file to replace the current one.',
+                );
+            }
         });
     }
 
@@ -47,6 +58,8 @@ class ProductRequest extends FormRequest
     {
         return [
             'category_id' => 'category',
+            'image' => 'product image',
+            'remove_image' => 'remove image',
         ];
     }
 

@@ -92,7 +92,13 @@
                 <tr>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="product-thumb">{{ strtoupper(mb_substr($product->name, 0, 2)) }}</span>
+                            @if ($product->hasImage())
+                                <img src="{{ $product->imageUrl() }}" alt="{{ $product->name }}" loading="lazy"
+                                     class="product-thumb rounded-2"
+                                     style="width:36px;height:36px;object-fit:cover;">
+                            @else
+                                <span class="product-thumb">{{ strtoupper(mb_substr($product->name, 0, 2)) }}</span>
+                            @endif
                             <div class="min-w-0">
                                 <a href="{{ route('products.show', $product) }}" class="fw-semibold text-decoration-none d-block text-truncate">
                                     {{ $product->name }}

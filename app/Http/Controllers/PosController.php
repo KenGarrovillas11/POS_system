@@ -109,6 +109,7 @@ class PosController extends Controller
             'id' => $product->id,
             'name' => $product->name,
             'category' => $product->category?->name,
+            'image' => $product->imageUrl(),
             'price' => (float) $product->selling_price,
             'stock' => (int) $product->stock,
             'unit' => $product->unit,

@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -106,6 +108,8 @@ class ProductController extends Controller
                 );
             }
 
+            $this->syncImage($product, $request);
+
             return $product;
         });
 
@@ -143,6 +147,9 @@ class ProductController extends Controller
         DB::transaction(function () use ($product, $data, $newStock, $request) {
             $stockChanged = $newStock !== (int) $product->stock;
 
+            // image_path is owned by syncImage(), never by mass assignment.
+            unset($data['image_path']);
+
             $product->fill($data)->save();
 
             if ($stockChanged) {
@@ -153,6 +160,8 @@ class ProductController extends Controller
                     $request->user(),
                 );
             }
+
+            $this->syncImage($product, $request);
         });
 
         $product->refresh();
@@ -189,10 +198,44 @@ class ProductController extends Controller
             $product->only(['name', 'selling_price', 'stock']),
         );
 
+        $product->deleteImage();
         $product->delete();
 
         return redirect()
             ->route('products.index')
             ->with('success', sprintf('Product "%s" deleted.', $name));
+    }
+
+    /**
+     * Apply the uploaded photo (or the remove request) to a product.
+     *
+     * Replacing a photo deletes the old file so the public disk does not
+     * accumulate orphans. Filenames are slugged from the product name with a
+     * short random suffix, so "Cola Can" and "Cola Can 2L" cannot overwrite
+     * each other's picture.
+     */
+    private function syncImage(Product $product, ProductRequest $request): void
+    {
+        if ($request->boolean('remove_image')) {
+            $product->deleteImage();
+
+            return;
+        }
+
+        if (! $request->hasFile('image')) {
+            return;
+        }
+
+        $file = $request->file('image');
+        $previous = $product->image_path;
+
+        $name = Str::slug($product->name) ?: 'product';
+        $path = $file->storeAs('products', $name.'-'.Str::lower(Str::random(6)).'.'.$file->guessExtension(), 'public');
+
+        $product->forceFill(['image_path' => $path])->save();
+
+        if ($previous && $previous !== $path) {
+            Storage::disk('public')->delete($previous);
+        }
     }
 }

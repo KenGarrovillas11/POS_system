@@ -10,7 +10,7 @@
         <div class="card mb-3">
             <div class="card-header">Product Details</div>
             <div class="card-body">
-                <form method="POST" action="{{ route('admin.products.update', $product) }}">
+                <form method="POST" action="{{ route('admin.products.update', $product) }}" enctype="multipart/form-data">
                     @csrf
                     @method('PUT')
                     @include('products._form')
