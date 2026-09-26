@@ -8,6 +8,64 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128722;</text></svg>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        /*
+         * Critical navbar styles, inlined ahead of app.css on purpose.
+         *
+         * The sidebar is dark and its text is light, so if app.css ever fails to
+         * load the navigation becomes white-on-white and effectively unreadable.
+         * These rules carry literal fallbacks so the navbar stays legible on its
+         * own; when app.css does load it overrides them and supplies the
+         * role-scoped theme through the custom properties below.
+         */
+        body,
+        .app-sidebar {
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
+        }
+        .app-sidebar {
+            background-color: var(--pos-sidebar-bg, #1b2430);
+            color: var(--pos-nav-text, #e2e8f0);
+        }
+        .app-sidebar .offcanvas-header {
+            background-color: var(--pos-sidebar-bg, #1b2430);
+        }
+        .app-sidebar .offcanvas-header a,
+        .app-sidebar .text-white,
+        .sidebar-profile .profile-name {
+            color: #fff !important;
+        }
+        .sidebar-nav .sidebar-link {
+            color: var(--pos-nav-text, #e2e8f0) !important;
+        }
+        .sidebar-nav .sidebar-link i {
+            color: var(--pos-nav-muted, #a3b1c2);
+        }
+        .sidebar-nav .sidebar-link:hover,
+        .sidebar-nav .sidebar-link.active {
+            color: #fff !important;
+        }
+        .sidebar-nav .sidebar-link:hover i,
+        .sidebar-nav .sidebar-link.active i {
+            color: #fff !important;
+        }
+        .sidebar-nav .sidebar-link.active {
+            background-color: var(--pos-accent, #4f46e5);
+        }
+        .sidebar-header,
+        .sidebar-profile .profile-role {
+            color: var(--pos-nav-muted, #a3b1c2) !important;
+        }
+        .avatar,
+        .role-badge {
+            background-color: var(--pos-accent, #4f46e5) !important;
+            color: #fff !important;
+        }
+    </style>
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
     @stack('styles')
 </head>
@@ -15,9 +73,12 @@
 @php
     $currentUser = auth()->user();
     $isAdmin = $currentUser?->isAdmin() ?? false;
+    // Drives the role-scoped navbar palette in app.css: the till and the back
+    // office are visually distinct so a shared device never causes confusion.
+    $roleKey = $isAdmin ? 'admin' : ($currentUser?->isStaff() ? 'staff' : 'guest');
 @endphp
 
-<div class="app-shell">
+<div class="app-shell" data-role="{{ $roleKey }}">
     @include('layouts.partials.sidebar')
 
     <div class="app-main">
@@ -35,7 +96,7 @@
             </div>
 
             <div class="ms-auto d-flex align-items-center gap-2">
-                <span class="badge {{ $isAdmin ? 'text-bg-primary' : 'text-bg-secondary' }} d-none d-sm-inline">
+                <span class="badge role-badge d-none d-sm-inline">
                     {{ $currentUser?->role->label() }}
                 </span>
 

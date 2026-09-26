@@ -4,14 +4,46 @@
 
 :root {
     --pos-sidebar-width: 250px;
+
+    /* UI font. Loaded from the Google Fonts CDN in the layout; the stack
+       degrades to the platform UI font when the CDN is unavailable. */
+    --pos-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+    /* Sidebar foregrounds, measured against both sidebar backgrounds.
+       nav text 12.7:1 / 12.0:1, section header and dim icons 7.2:1 / 6.8:1,
+       hover and active 15.7:1 / 14.8:1 - all comfortably above WCAG AA. */
+    --pos-nav-text: #e2e8f0;
+    --pos-nav-muted: #a3b1c2;
+    --pos-nav-hover-text: #ffffff;
+
+    /* Kept as an alias so anything still pointing at the old token follows the
+       same accessible value. */
+    --pos-sidebar-muted: #a3b1c2;
+}
+
+/* Role-scoped navbar theming.
+   The till and the back office are separate jobs - a cashier cannot adjust
+   stock or refunds, and an administrator cannot ring up sales - so each side
+   gets its own accent and sidebar shade. */
+.app-shell {
     --pos-sidebar-bg: #1b2430;
     --pos-sidebar-hover: #263242;
-    --pos-sidebar-active: #0d6efd;
+    --pos-accent: #4f46e5;
+}
+
+.app-shell[data-role="staff"] {
+    --pos-sidebar-bg: #142b33;
+    --pos-sidebar-hover: #1e3d47;
+    --pos-accent: #0f766e;
 }
 
 body {
     background-color: #f4f6f9;
     font-size: 0.925rem;
+    font-family: var(--pos-font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 /* ---------- App shell ---------- */
@@ -24,8 +56,9 @@ body {
 .app-sidebar {
     width: var(--pos-sidebar-width) !important;
     background-color: var(--pos-sidebar-bg);
-    color: #cbd5e1;
+    color: var(--pos-nav-text);
     flex: 0 0 var(--pos-sidebar-width);
+    font-family: var(--pos-font-sans);
 }
 
 .app-sidebar .offcanvas-body {
@@ -38,38 +71,57 @@ body {
     align-items: center;
     gap: 0.7rem;
     padding: 0.6rem 1.1rem;
-    color: #cbd5e1;
+    color: var(--pos-nav-text);
     text-decoration: none;
     font-size: 0.9rem;
+    font-weight: 500;
     border-left: 3px solid transparent;
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+.sidebar-nav .sidebar-link:focus-visible {
+    outline: 2px solid var(--pos-nav-muted);
+    outline-offset: -2px;
+}
+
+/* Icons sit a step dimmer than their label so the text stays the focus, and
+   they follow the link state so an active item reads as one unit. */
 .sidebar-nav .sidebar-link i {
     font-size: 1rem;
     width: 1.1rem;
     text-align: center;
     flex-shrink: 0;
+    color: var(--pos-nav-muted);
+    transition: color 0.15s ease;
 }
 
 .sidebar-nav .sidebar-link:hover {
     background-color: var(--pos-sidebar-hover);
-    color: #fff;
+    color: var(--pos-nav-hover-text);
+}
+
+.sidebar-nav .sidebar-link:hover i {
+    color: var(--pos-nav-hover-text);
 }
 
 .sidebar-nav .sidebar-link.active {
-    background-color: var(--pos-sidebar-active);
+    background-color: var(--pos-accent);
     border-left-color: #fff;
     color: #fff;
     font-weight: 600;
 }
 
+.sidebar-nav .sidebar-link.active i {
+    color: #fff;
+}
+
+/* Section label: wide tracking, heavy weight, muted but still AA readable. */
 .sidebar-header {
-    padding: 1.1rem 1.1rem 0.4rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.09em;
+    padding: 1.15rem 1.1rem 0.45rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #64748b;
+    color: var(--pos-nav-muted);
     font-weight: 700;
 }
 
@@ -97,6 +149,48 @@ body {
     flex: 1 1 auto;
 }
 
+/* Role chip in the topbar, tinted to match the sidebar accent. */
+.role-badge {
+    background-color: var(--pos-accent) !important;
+    color: #fff !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Signed-in user block, pinned to the top of the sidebar above the nav. */
+.sidebar-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.9rem 1.1rem;
+    margin: 0.25rem 0 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.sidebar-profile .avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+/* The name is the emphasis, the role is supporting text - both need to clear
+   AA on the dark sidebar, so neither uses Bootstrap's grey text utilities. */
+.sidebar-profile .profile-name {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.88rem;
+    line-height: 1.25;
+}
+
+.sidebar-profile .profile-role {
+    color: var(--pos-nav-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 /* ---------- Utilities ---------- */
 
 .min-w-0 {
@@ -110,7 +204,7 @@ body {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background-color: var(--pos-sidebar-active);
+    background-color: var(--pos-accent);
     color: #fff;
     font-size: 0.8rem;
     font-weight: 700;
@@ -199,7 +293,7 @@ body {
 .pos-grid .pos-product-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(16, 24, 40, 0.12);
-    border-color: var(--pos-sidebar-active);
+    border-color: var(--pos-accent);
 }
 
 .pos-grid .pos-product-card.disabled {
@@ -244,7 +338,8 @@ body {
     height: 38px;
     border-radius: 0.45rem;
     background-color: #eef2f7;
-    color: #64748b;
+    /* Light surface, so this needs a dark ink rather than the sidebar muted tone. */
+    color: #475569;
     display: inline-flex;
     align-items: center;
     justify-content: center;

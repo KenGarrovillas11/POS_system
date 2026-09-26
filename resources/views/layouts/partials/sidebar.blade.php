@@ -1,12 +1,14 @@
 @php
     /**
-     * Shared navigation. Admin-only links are omitted entirely for staff, so
-     * staff never see actions they are not permitted to perform.
+     * Shared navigation. The till is cashier-only and admin-only links are
+     * omitted entirely for staff, so neither role ever sees an action it is
+     * not permitted to perform.
      */
     $isAdmin = auth()->user()?->isAdmin() ?? false;
+    $isStaff = auth()->user()?->isStaff() ?? false;
 
     $nav = [
-        ['route' => 'pos.index', 'label' => 'Point of Sale', 'icon' => 'bi-cash-coin', 'show' => true],
+        ['route' => 'pos.index', 'label' => 'Point of Sale', 'icon' => 'bi-cash-coin', 'show' => $isStaff],
         ['route' => 'orders.index', 'label' => 'Orders', 'icon' => 'bi-receipt', 'show' => true],
         ['route' => 'products.index', 'label' => 'Products', 'icon' => 'bi-box-seam', 'show' => true],
         ['route' => 'inventory.index', 'label' => 'Inventory', 'icon' => 'bi-boxes', 'show' => true],
@@ -33,6 +35,16 @@
     </div>
 
     <div class="offcanvas-body flex-column p-0">
+        {{-- Signed-in user, above the navigation: the till and the back office
+             are separate roles, so who is at the keyboard should be obvious. --}}
+        <div class="sidebar-profile">
+            <span class="avatar">{{ auth()->user()?->initials() }}</span>
+            <div class="min-w-0">
+                <div class="profile-name text-truncate">{{ auth()->user()?->name }}</div>
+                <div class="profile-role text-truncate">{{ auth()->user()?->role->label() }}</div>
+            </div>
+        </div>
+
         <nav class="nav flex-column sidebar-nav py-2">
             @foreach ($nav as $item)
                 @continue(! $item['show'])
@@ -49,15 +61,5 @@
                 @endif
             @endforeach
         </nav>
-
-        <div class="mt-auto p-3 border-top border-secondary-subtle">
-            <div class="d-flex align-items-center gap-2">
-                <span class="avatar">{{ auth()->user()?->initials() }}</span>
-                <div class="min-w-0">
-                    <div class="text-white small fw-semibold text-truncate">{{ auth()->user()?->name }}</div>
-                    <div class="text-secondary small text-truncate">{{ auth()->user()?->role->label() }}</div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
