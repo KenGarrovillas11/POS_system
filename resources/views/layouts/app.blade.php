@@ -16,11 +16,19 @@
         /*
          * Critical navbar styles, inlined ahead of app.css on purpose.
          *
-         * The sidebar is dark and its text is light, so if app.css ever fails to
-         * load the navigation becomes white-on-white and effectively unreadable.
-         * These rules carry literal fallbacks so the navbar stays legible on its
-         * own; when app.css does load it overrides them and supplies the
-         * role-scoped theme through the custom properties below.
+         * The sidebar is a light surface with dark ink. If app.css ever fails to
+         * load the navigation would fall back to the page's own background, so
+         * these rules carry literal fallbacks and paint the surface themselves;
+         * when app.css does load it overrides them and supplies the role-scoped
+         * theme through the custom properties below.
+         *
+         * The !important markers are load-bearing, not decoration: the sidebar
+         * root is a Bootstrap .offcanvas-lg, and at >=992px Bootstrap ships
+         * `.offcanvas-lg { background-color: transparent !important }` plus
+         * `.offcanvas-lg .offcanvas-header { display: none }`. Only an equal
+         * !important beats those. Every var() fallback below must stay identical
+         * to the value app.css declares for the same token - NavbarThemeTest
+         * fails if the two copies drift apart.
          */
         body,
         .app-sidebar {
@@ -28,28 +36,31 @@
                 "Helvetica Neue", Arial, sans-serif;
         }
         .app-sidebar {
-            background-color: var(--pos-sidebar-bg, #1b2430);
-            color: var(--pos-nav-text, #e2e8f0);
+            background-color: var(--pos-sidebar-bg, #f8fafc) !important;
+            color: var(--pos-nav-text, #0f172a);
         }
         .app-sidebar .offcanvas-header {
-            background-color: var(--pos-sidebar-bg, #1b2430);
+            display: flex !important;
+            background-color: var(--pos-sidebar-bg, #f8fafc) !important;
         }
         .app-sidebar .offcanvas-header a,
         .app-sidebar .text-white,
         .sidebar-profile .profile-name {
-            color: #fff !important;
+            color: var(--pos-sidebar-text, #0f172a) !important;
         }
         .sidebar-nav .sidebar-link {
-            color: var(--pos-nav-text, #e2e8f0) !important;
+            color: var(--pos-nav-text, #0f172a) !important;
         }
         .sidebar-nav .sidebar-link i {
-            color: var(--pos-nav-muted, #a3b1c2);
+            color: var(--pos-nav-muted, #475569);
         }
-        .sidebar-nav .sidebar-link:hover,
-        .sidebar-nav .sidebar-link.active {
-            color: #fff !important;
+        .sidebar-nav .sidebar-link:hover {
+            color: var(--pos-nav-hover-text, #0f172a) !important;
         }
-        .sidebar-nav .sidebar-link:hover i,
+        .sidebar-nav .sidebar-link:hover i {
+            color: var(--pos-nav-hover-text, #0f172a) !important;
+        }
+        .sidebar-nav .sidebar-link.active,
         .sidebar-nav .sidebar-link.active i {
             color: #fff !important;
         }
@@ -58,7 +69,7 @@
         }
         .sidebar-header,
         .sidebar-profile .profile-role {
-            color: var(--pos-nav-muted, #a3b1c2) !important;
+            color: var(--pos-nav-muted, #475569) !important;
         }
         .avatar,
         .role-badge {

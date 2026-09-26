@@ -27,10 +27,10 @@
 
 <div class="offcanvas-lg offcanvas-start app-sidebar" tabindex="-1" id="appSidebar" aria-labelledby="appSidebarLabel">
     <div class="offcanvas-header border-bottom border-secondary-subtle">
-        <a href="{{ route('home') }}" class="text-decoration-none text-white">
+        <a href="{{ route('home') }}" class="text-decoration-none sidebar-brand">
             <span class="fs-5 fw-semibold">{{ \App\Models\Setting::get('store_name', config('app.name')) }}</span>
         </a>
-        <button type="button" class="btn-close btn-close-white d-lg-none"
+        <button type="button" class="btn-close d-lg-none"
                 data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Close"></button>
     </div>
 

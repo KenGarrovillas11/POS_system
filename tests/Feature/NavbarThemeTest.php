@@ -67,19 +67,19 @@ class NavbarThemeTest extends TestCase
 
     public function test_sidebar_text_meets_contrast_requirements(): void
     {
-        // The old section-header colour was 3.3:1 on the sidebar, below the 4.5:1
-        // WCAG AA threshold for small text. Pin the accessible token instead.
+        // The old muted tone (#a3b1c2) was only ever readable on a dark surface.
+        // The sidebar is light now, so it is pinned to dark slate ink instead.
         $this->assertStringNotContainsString('#64748b', $this->cssRules());
-        $this->assertMatchesRegularExpression('/--pos-nav-muted:\s*#a3b1c2;/', $this->cssRules());
+        $this->assertMatchesRegularExpression('/--pos-nav-muted:\s*#475569;/', $this->cssRules());
 
         $this->assertGreaterThanOrEqual(
             4.5,
-            $this->contrast('#94a3b8', '#1b2430'),
+            $this->contrast('#475569', '#f8fafc'),
             'Section headers on the admin sidebar must be readable.'
         );
         $this->assertGreaterThanOrEqual(
             4.5,
-            $this->contrast('#94a3b8', '#142b33'),
+            $this->contrast('#475569', '#f0fdfa'),
             'Section headers on the staff sidebar must be readable.'
         );
     }
@@ -145,10 +145,11 @@ class NavbarThemeTest extends TestCase
             );
         }
 
-        // Light text on a dark surface, not the reverse.
-        $this->assertMatchesRegularExpression('/\.app-sidebar\s*\{[^}]*background-color:\s*var\(--pos-sidebar-bg,\s*#1b2430\)/s', $critical);
+        // Dark ink on a light surface, not the reverse.
+        $this->assertMatchesRegularExpression('/\.app-sidebar\s*\{[^}]*background-color:\s*var\(--pos-sidebar-bg,\s*#f8fafc\)\s*!important/s', $critical);
+        $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link\s*\{[^}]*color:\s*var\(--pos-nav-text,\s*#0f172a\)/s', $critical);
         // Selector lists are allowed: the header shares a rule with the profile role.
-        $this->assertMatchesRegularExpression('/\.sidebar-header[^{]*\{[^}]*color:\s*var\(--pos-nav-muted,\s*#a3b1c2\)/s', $critical);
+        $this->assertMatchesRegularExpression('/\.sidebar-header[^{]*\{[^}]*color:\s*var\(--pos-nav-muted,\s*#475569\)/s', $critical);
     }
 
     public function test_the_role_chip_and_brand_are_not_white_on_white(): void
@@ -157,17 +158,25 @@ class NavbarThemeTest extends TestCase
 
         $html = $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->getContent();
         $critical = $this->criticalCss($html);
+        $css = $this->cssRules();
 
-        // The brand uses Bootstrap's text-white, so the critical CSS has to paint
-        // the surface behind it or the store name disappears.
-        $this->assertStringContainsString('class="text-decoration-none text-white"', $html);
+        // The brand used to carry Bootstrap's text-white, which is unreadable on
+        // the light sidebar. It now takes the sidebar ink token.
+        $this->assertStringContainsString('class="text-decoration-none sidebar-brand"', $html);
+        $this->assertStringNotContainsString('text-decoration-none text-white', $html);
         $this->assertTrue(
-            $this->ruleDeclares($critical, '.app-sidebar .offcanvas-header', 'background-color'),
-            'The sidebar header needs an explicit dark background for the white brand text.'
+            $this->ruleDeclares($css, '.app-sidebar .sidebar-brand', 'color'),
+            'The brand must be inked from the sidebar text token.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.app-sidebar \.offcanvas-header\s*\{[^}]*background-color:\s*var\(--pos-sidebar-bg,\s*#f8fafc\)\s*!important/s',
+            $critical,
+            'The sidebar header must paint the surface behind the brand.'
         );
 
         // The role chip lost its text-bg-* class when it was themed, so it must
-        // get both a background and white text from the critical CSS.
+        // get both a background and white text from the critical CSS. White is
+        // correct here: it sits on the accent, not on the sidebar.
         $this->assertStringContainsString('role-badge', $html);
         $this->assertStringNotContainsString('text-bg-primary', $html);
         $this->assertMatchesRegularExpression('/\.role-badge\s*\{[^}]*color:\s*#fff\s*!important/s', $critical);
@@ -223,16 +232,128 @@ class NavbarThemeTest extends TestCase
     {
         $css = $this->cssRules();
 
-        // A faint grey is what made the nav unreadable; the token must be a
-        // solid slate that clears AA on both sidebar backgrounds.
-        $this->assertMatchesRegularExpression('/--pos-nav-text:\s*#e2e8f0;/', $css);
-        $this->assertMatchesRegularExpression('/--pos-nav-muted:\s*#a3b1c2;/', $css);
+        // The sidebar is a light surface, so the nav ink is dark. The pale
+        // greys that used to sit here are what made the labels invisible.
+        $this->assertMatchesRegularExpression('/--pos-nav-text:\s*#0f172a;/', $css);
+        $this->assertMatchesRegularExpression('/--pos-nav-muted:\s*#475569;/', $css);
         $this->assertStringNotContainsString('#cbd5e1', $css);
+        $this->assertStringNotContainsString('#a3b1c2', $css);
 
-        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#e2e8f0', '#1b2430'), 'Admin nav text');
-        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#e2e8f0', '#142b33'), 'Staff nav text');
-        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#a3b1c2', '#1b2430'), 'Admin section header');
-        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#a3b1c2', '#142b33'), 'Staff section header');
+        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#0f172a', '#f8fafc'), 'Admin nav text');
+        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#0f172a', '#f0fdfa'), 'Staff nav text');
+        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#475569', '#f8fafc'), 'Admin section header');
+        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#475569', '#f0fdfa'), 'Staff section header');
+
+        // The active pill is the one place white text is correct, because it
+        // sits on the accent rather than on the sidebar surface.
+        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#ffffff', '#4f46e5'), 'Admin active pill');
+        $this->assertGreaterThanOrEqual(4.5, $this->contrast('#ffffff', '#0f766e'), 'Staff active pill');
+    }
+
+    public function test_the_sidebar_surface_cannot_be_overridden_by_the_offcanvas_utility(): void
+    {
+        // Bootstrap ships, inside @media (min-width: 992px):
+        //   .offcanvas-lg { background-color: transparent !important }
+        //   .offcanvas-lg .offcanvas-header { display: none }
+        // The sidebar root carries offcanvas-lg, and the CDN loads first, so our
+        // rules must be !important too or the surface never paints and the
+        // header vanishes. Only !important beats !important.
+        $css = $this->cssRules();
+
+        $surface = $this->ruleBodies($css, '.app-sidebar');
+
+        $this->assertMatchesRegularExpression(
+            '/background-color:\s*var\(--pos-sidebar-bg\)\s*!important\s*;/',
+            $surface,
+            'The sidebar background must be !important to beat .offcanvas-lg\'s transparent !important.'
+        );
+
+        $header = $this->ruleBodies($css, '.app-sidebar .offcanvas-header');
+
+        $this->assertMatchesRegularExpression(
+            '/display:\s*flex\s*!important\s*;/',
+            $header,
+            'The store-name band must be !important to beat .offcanvas-lg .offcanvas-header { display: none }.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/background-color:\s*var\(--pos-sidebar-bg\)\s*!important\s*;/',
+            $header
+        );
+
+        // The inlined critical copy has the same obligation.
+        $critical = $this->criticalCss(
+            $this->actingAs(User::factory()->admin()->create())->get(route('admin.dashboard'))->getContent()
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/background-color:[^;}]*!important\s*;/',
+            $this->ruleBodies($critical, '.app-sidebar'),
+            'The critical CSS sidebar background must also be !important.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/display:\s*flex\s*!important\s*;/',
+            $this->ruleBodies($critical, '.app-sidebar .offcanvas-header')
+        );
+    }
+
+    /**
+     * The concatenated bodies of every rule whose selector list contains the
+     * given selector.
+     *
+     * A selector can appear in several rules - the sidebar carries both a font
+     * declaration and a surface declaration - so a single regex match on the
+     * first occurrence is not enough.
+     */
+    private function ruleBodies(string $css, string $selector): string
+    {
+        $quoted = preg_quote($selector, '#');
+        $bodies = [];
+
+        // The boundary is a brace, a semicolon or a line break: hand-written CSS
+        // in the layout separates some rules with a blank line rather than the
+        // closing brace of the previous one.
+        preg_match_all('#(?:^|[},;\n])\s*[^{}]*'.$quoted.'\s*(?:,[^{]*)?\{([^}]*)\}#s', $css, $matches);
+
+        foreach ($matches[1] as $body) {
+            $bodies[] = $body;
+        }
+
+        return implode("\n", $bodies);
+    }
+
+    public function test_the_critical_fallbacks_match_the_stylesheet_tokens(): void
+    {
+        $css = $this->cssRules();
+        $critical = $this->criticalCss(
+            $this->actingAs(User::factory()->admin()->create())->get(route('admin.dashboard'))->getContent()
+        );
+
+        // The values app.css declares for the default (admin) palette.
+        preg_match_all('/--pos-([a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/', $css, $declared, PREG_SET_ORDER);
+        $tokens = [];
+
+        foreach ($declared as [, $name, $hex]) {
+            // The first declaration wins: :root holds the shared inks, .app-shell
+            // holds the default-role surface, and the staff block comes last.
+            $tokens[$name] ??= $hex;
+        }
+
+        // Every literal fallback in the critical block must be the same colour
+        // the real stylesheet uses, or the navbar changes hue when app.css loads.
+        preg_match_all('/var\(--pos-([a-z-]+),\s*(#[0-9a-f]{3,8})\s*\)/', $critical, $fallbacks, PREG_SET_ORDER);
+
+        $this->assertNotEmpty($fallbacks, 'The critical CSS should carry literal fallbacks.');
+
+        foreach ($fallbacks as [$match, $name, $hex]) {
+            $this->assertArrayHasKey($name, $tokens, "app.css must declare --pos-{$name}.");
+
+            $this->assertSame(
+                strtolower($tokens[$name]),
+                strtolower($hex),
+                "Critical CSS fallback for --pos-{$name} (#{$hex}) has drifted from app.css ({$tokens[$name]})."
+            );
+        }
     }
 
     public function test_icons_follow_the_state_of_their_link(): void
@@ -252,8 +373,9 @@ class NavbarThemeTest extends TestCase
         $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link\.active i\s*\{[^}]*color:\s*#fff/s', $css);
 
         // And the same in the critical CSS, so icons do not vanish either.
-        $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link i\s*\{[^}]*color:/s', $critical);
-        $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link\.active i\s*\{[^}]*color:\s*#fff/s', $critical);
+        $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link i\s*\{[^}]*color:\s*var\(--pos-nav-muted,\s*#475569\)/s', $critical);
+        $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link:hover i\s*\{[^}]*color:\s*var\(--pos-nav-hover-text,\s*#0f172a\)/s', $critical);
+        $this->assertMatchesRegularExpression('/\.sidebar-nav \.sidebar-link\.active i[^{]*\{[^}]*color:\s*#fff/s', $critical);
     }
 
     public function test_the_section_header_is_tracked_out_and_readable(): void
@@ -299,12 +421,12 @@ class NavbarThemeTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // text-secondary on the dark sidebar was 3.3:1, which is why the role
-        // label looked washed out.
+        // Bootstrap's grey text utilities are not used anywhere in the sidebar;
+        // the name and role are both inked from the sidebar tokens.
         $this->assertStringNotContainsString('text-secondary', $this->sidebarMarkup($html));
 
         $css = $this->cssRules();
-        $this->assertMatchesRegularExpression('/\.sidebar-profile \.profile-name\s*\{[^}]*color:\s*#fff/s', $css);
+        $this->assertMatchesRegularExpression('/\.sidebar-profile \.profile-name\s*\{[^}]*color:\s*var\(--pos-sidebar-text\)/s', $css);
         $this->assertMatchesRegularExpression('/\.sidebar-profile \.profile-role\s*\{[^}]*color:\s*var\(--pos-nav-muted\)/s', $css);
     }
 

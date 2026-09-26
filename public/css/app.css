@@ -11,30 +11,32 @@
         "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 
     /* Sidebar foregrounds, measured against both sidebar backgrounds.
-       nav text 12.7:1 / 12.0:1, section header and dim icons 7.2:1 / 6.8:1,
-       hover and active 15.7:1 / 14.8:1 - all comfortably above WCAG AA. */
-    --pos-nav-text: #e2e8f0;
-    --pos-nav-muted: #a3b1c2;
-    --pos-nav-hover-text: #ffffff;
+       The sidebar is a light surface and the type is dark ink, never the
+       reverse: nav text 17.1:1 / 17.0:1, section header and dim icons
+       7.2:1 / 7.2:1, active pill 6.3:1 / 5.5:1 - all above WCAG AA. */
+    --pos-nav-text: #0f172a;
+    --pos-nav-muted: #475569;
+    --pos-nav-hover-text: #0f172a;
+    --pos-sidebar-text: #0f172a;
 
     /* Kept as an alias so anything still pointing at the old token follows the
        same accessible value. */
-    --pos-sidebar-muted: #a3b1c2;
+    --pos-sidebar-muted: #475569;
 }
 
 /* Role-scoped navbar theming.
    The till and the back office are separate jobs - a cashier cannot adjust
    stock or refunds, and an administrator cannot ring up sales - so each side
-   gets its own accent and sidebar shade. */
+   gets its own accent and sidebar tint. */
 .app-shell {
-    --pos-sidebar-bg: #1b2430;
-    --pos-sidebar-hover: #263242;
+    --pos-sidebar-bg: #f8fafc;
+    --pos-sidebar-hover: #e2e8f0;
     --pos-accent: #4f46e5;
 }
 
 .app-shell[data-role="staff"] {
-    --pos-sidebar-bg: #142b33;
-    --pos-sidebar-hover: #1e3d47;
+    --pos-sidebar-bg: #f0fdfa;
+    --pos-sidebar-hover: #ccfbf1;
     --pos-accent: #0f766e;
 }
 
@@ -53,12 +55,36 @@ body {
     min-height: 100vh;
 }
 
+/* The sidebar root is also a Bootstrap offcanvas-lg. Inside
+   @media (min-width: 992px) Bootstrap ships
+
+       .offcanvas-lg { background-color: transparent !important; }
+       .offcanvas-lg .offcanvas-header { display: none; }
+
+   Both are !important, and they load from the CDN *before* this file, so
+   without an equal !important here the surface never paints and the header
+   vanishes. That left light text sitting on the light page background -
+   1.1:1, and invisible. Only !important beats !important, so keep these
+   marked. */
 .app-sidebar {
     width: var(--pos-sidebar-width) !important;
-    background-color: var(--pos-sidebar-bg);
+    background-color: var(--pos-sidebar-bg) !important;
     color: var(--pos-nav-text);
     flex: 0 0 var(--pos-sidebar-width);
     font-family: var(--pos-font-sans);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Store-name band, hidden by Bootstrap on desktop without this. */
+.app-sidebar .offcanvas-header {
+    display: flex !important;
+    background-color: var(--pos-sidebar-bg) !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.app-sidebar .sidebar-brand {
+    color: var(--pos-sidebar-text);
 }
 
 .app-sidebar .offcanvas-body {
@@ -164,7 +190,7 @@ body {
     gap: 0.7rem;
     padding: 0.9rem 1.1rem;
     margin: 0.25rem 0 0.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.1);
 }
 
 .sidebar-profile .avatar {
@@ -174,10 +200,10 @@ body {
     flex-shrink: 0;
 }
 
-/* The name is the emphasis, the role is supporting text - both need to clear
-   AA on the dark sidebar, so neither uses Bootstrap's grey text utilities. */
+/* The name is the emphasis, the role is supporting text - both are dark ink on
+   the light sidebar, so neither uses Bootstrap's grey text utilities. */
 .sidebar-profile .profile-name {
-    color: #fff;
+    color: var(--pos-sidebar-text);
     font-weight: 600;
     font-size: 0.88rem;
     line-height: 1.25;
