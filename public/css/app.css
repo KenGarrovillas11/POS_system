@@ -266,6 +266,23 @@ body {
     margin: 0.5rem 0;
 }
 
+/* Label/value rows: the value must never be pushed out of the paper width. */
+.receipt-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.receipt-line > :last-child {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Long product names wrap instead of shoving the amount off the sheet. */
+.receipt-item-name {
+    overflow-wrap: anywhere;
+}
+
 /* ---------- Print stylesheet ---------- */
 
 @media print {
@@ -294,16 +311,14 @@ body {
         box-shadow: none !important;
         border: 0 !important;
         margin: 0 auto !important;
+        /* Thermal printers have a small unprintable edge, so the sheet fills the
+           printable width instead of its nominal paper width. Keeping the fixed
+           80mm/58mm width here pushed the right-hand amounts outside the page. */
+        width: 100% !important;
+        max-width: 100% !important;
     }
 
     @page {
-        margin: 6mm;
-    }
-}
-
-/* 58mm receipt paper width */
-@media print {
-    .receipt-58mm .print-sheet {
-        width: 58mm;
+        margin: 3mm;
     }
 }

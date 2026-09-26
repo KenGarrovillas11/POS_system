@@ -57,19 +57,25 @@
 
                 <hr>
 
-                <div class="d-flex justify-content-between">
+                <div class="receipt-line">
                     <span>Order #</span>
                     <span>{{ $order->order_number }}</span>
                 </div>
-                <div class="d-flex justify-content-between">
+                <div class="receipt-line">
                     <span>Date</span>
-                    <span>{{ $order->created_at->format('d/m/Y H:i') }}</span>
+                    <span title="{{ $order->created_at->toDayDateTimeString() }}">
+                        {{ $order->created_at->format('d M Y') }}
+                    </span>
                 </div>
-                <div class="d-flex justify-content-between">
+                <div class="receipt-line">
+                    <span>Time</span>
+                    <span>{{ $order->created_at->format('g:i A') }}</span>
+                </div>
+                <div class="receipt-line">
                     <span>Served by</span>
                     <span>{{ $order->cashier_name }}</span>
                 </div>
-                <div class="d-flex justify-content-between">
+                <div class="receipt-line">
                     <span>Payment</span>
                     <span>{{ $order->payment_method->label() }}</span>
                 </div>
@@ -81,7 +87,7 @@
                     @foreach ($order->items as $item)
                         <tr class="align-top">
                             <td colspan="2">
-                                {{ $item->product_name }}
+                                <span class="receipt-item-name">{{ $item->product_name }}</span>
                                 <div class="text-body-secondary">
                                     {{ $item->quantity }} &times; {{ Setting::money($item->unit_price) }}
                                     @if ($item->refunded_quantity > 0)
@@ -89,7 +95,7 @@
                                     @endif
                                 </div>
                             </td>
-                            <td class="text-end align-middle">{{ Setting::money($item->line_total) }}</td>
+                            <td class="text-end align-middle" style="white-space:nowrap;">{{ Setting::money($item->line_total) }}</td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -97,13 +103,13 @@
 
                 <hr>
 
-                <div class="d-flex justify-content-between">
+                <div class="receipt-line">
                     <span>Subtotal</span>
                     <span>{{ Setting::money($order->subtotal) }}</span>
                 </div>
 
                 @if ($order->discount_amount > 0)
-                    <div class="d-flex justify-content-between">
+                    <div class="receipt-line">
                         <span>
                             Discount
                             <span class="text-body-secondary">
@@ -117,35 +123,35 @@
                 @endif
 
                 @if ((float) $order->tax_amount > 0)
-                    <div class="d-flex justify-content-between">
+                    <div class="receipt-line">
                         <span>Tax ({{ rtrim(rtrim(number_format((float) $order->tax_rate, 2, '.', ''), '0'), '.') }}%)</span>
                         <span>{{ Setting::money($order->tax_amount) }}</span>
                     </div>
                 @endif
 
-                <div class="d-flex justify-content-between fw-bold fs-6 mt-1">
+                <div class="receipt-line fw-bold fs-6 mt-1">
                     <span>TOTAL</span>
                     <span>{{ Setting::money($order->total) }}</span>
                 </div>
 
-                <div class="d-flex justify-content-between">
+                <div class="receipt-line">
                     <span>Paid</span>
                     <span>{{ Setting::money($order->paid_amount) }}</span>
                 </div>
 
                 @if ((float) $order->change_amount > 0)
-                    <div class="d-flex justify-content-between">
+                    <div class="receipt-line">
                         <span>Change</span>
                         <span>{{ Setting::money($order->change_amount) }}</span>
                     </div>
                 @endif
 
                 @if ((float) $order->refunded_amount > 0)
-                    <div class="d-flex justify-content-between text-danger">
+                    <div class="receipt-line text-danger">
                         <span>Refunded</span>
                         <span>- {{ Setting::money($order->refunded_amount) }}</span>
                     </div>
-                    <div class="d-flex justify-content-between fw-bold">
+                    <div class="receipt-line fw-bold">
                         <span>NET</span>
                         <span>{{ Setting::money($order->net_total) }}</span>
                     </div>
@@ -159,7 +165,11 @@
                 @if ($order->isCancelled())
                     <hr>
                     <div class="text-center fw-bold text-danger">CANCELLED</div>
-                    <div class="text-center text-body-secondary">{{ $order->cancelled_at?->format('d/m/Y H:i') }}</div>
+                    @if ($order->cancelled_at)
+                        <div class="text-center text-body-secondary">
+                            {{ $order->cancelled_at->format('d M Y') }} at {{ $order->cancelled_at->format('g:i A') }}
+                        </div>
+                    @endif
                 @endif
 
                 <hr>
