@@ -16,8 +16,29 @@
         <a href="{{ route('admin.inventory.create', $product) }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-boxes me-1"></i>Adjust Stock
         </a>
+        <a href="{{ route('admin.batches.index', $product) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-layers me-1"></i>Batches &amp; Expiry
+        </a>
     @endif
 </div>
+
+@if ($expiredCount > 0)
+    <div class="alert alert-danger d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <div>
+            <strong>{{ $expiredCount }} lot(s) past the expiry date.</strong>
+            Those units are counted in stock but cannot be sold.
+        </div>
+    </div>
+@elseif ($expiringCount > 0)
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-clock-fill"></i>
+        <div>
+            <strong>{{ $expiringCount }} lot(s) expire soon.</strong>
+            Sales draw from the soonest date first.
+        </div>
+    </div>
+@endif
 
 <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3">
@@ -78,6 +99,33 @@
                             {{ $product->stock }}
                         </span>
                     </dd>
+
+                    @if ($product->stock > $product->sellableStock())
+                        <dt class="col-5 text-body-secondary fw-normal">Sellable</dt>
+                        <dd class="col-7">
+                            <span class="badge text-bg-warning">{{ $product->sellableStock() }}</span>
+                            <span class="small text-body-secondary">{{ $product->expiredQuantity() }} expired</span>
+                        </dd>
+                    @endif
+
+                    <dt class="col-5 text-body-secondary fw-normal">Next expiry</dt>
+                    <dd class="col-7">
+                        @if ($soonestBatch)
+                            <span class="badge {{ match ($product->expiryStatus()) {
+                                'expired' => 'text-bg-danger',
+                                'expiring' => 'text-bg-warning',
+                                default => 'text-bg-light',
+                            } }}">
+                                {{ $soonestBatch->expiry_date->format('M j, Y') }}
+                            </span>
+                            <div class="small text-body-secondary">{{ $soonestBatch->expiryLabel() }}</div>
+                        @else
+                            <span class="text-body-secondary">No expiry</span>
+                        @endif
+                    </dd>
+
+                    <dt class="col-5 text-body-secondary fw-normal">Delivery lots</dt>
+                    <dd class="col-7">{{ $product->batches->count() }}</dd>
 
                     <dt class="col-5 text-body-secondary fw-normal">Low stock at</dt>
                     <dd class="col-7">{{ $product->low_stock_threshold }}</dd>

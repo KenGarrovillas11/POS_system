@@ -34,6 +34,7 @@ class ProductImageTest extends TestCase
             'low_stock_threshold' => 6,
             'unit' => 'pcs',
             'is_active' => 1,
+            'expiry_date' => now()->addMonths(6)->toDateString(),
         ], $overrides);
     }
 

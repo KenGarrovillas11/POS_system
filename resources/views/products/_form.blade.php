@@ -109,13 +109,40 @@
 
     <div class="col-md-3">
         <div class="mb-3">
-            <label for="stock" class="form-label">Stock Level <span class="text-danger">*</span></label>
+            <label for="stock" class="form-label">
+                {{ $editing ? 'Stock Level' : 'Opening Stock' }} <span class="text-danger">*</span>
+            </label>
             <input type="number" min="0" step="1" class="form-control @error('stock') is-invalid @enderror"
                    id="stock" name="stock" value="{{ old('stock', $product->stock ?? 0) }}" required>
             @if ($editing)
                 <div class="form-text">Changes are logged in the stock movement history.</div>
+            @else
+                <div class="form-text">Recorded as the first delivery lot.</div>
             @endif
             @error('stock')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="mb-3">
+            @if ($editing)
+                {{-- A product can hold several lots, each with its own date, so
+                     one field would be ambiguous here. Point at the lots page. --}}
+                <span class="form-label d-block">Expiry Dates</span>
+                <a href="{{ route('admin.batches.index', $product) }}" class="btn btn-sm btn-outline-secondary w-100">
+                    <i class="bi bi-layers me-1"></i>Manage {{ $product->batches->count() }} lot(s)
+                </a>
+                <div class="form-text">Each delivery carries its own date.</div>
+            @else
+                <label for="expiry_date" class="form-label">
+                    Expiry Date <span class="text-danger">*</span>
+                </label>
+                <input type="date" min="{{ now()->toDateString() }}"
+                       class="form-control @error('expiry_date') is-invalid @enderror"
+                       id="expiry_date" name="expiry_date" value="{{ old('expiry_date') }}" required>
+                <div class="form-text">Date on the opening delivery. Leave undated only for non-perishables.</div>
+                @error('expiry_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            @endif
         </div>
     </div>
 

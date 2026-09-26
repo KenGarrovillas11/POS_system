@@ -18,12 +18,15 @@ class StockAdjustmentTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
         $product = Product::factory()->create(['stock' => 10, 'low_stock_threshold' => 5]);
+        $expiry = now()->addMonths(6)->toDateString();
 
         $this->actingAs($admin)
             ->post(route('admin.inventory.store', $product), [
                 'type' => InventoryMovementType::StockIn->value,
                 'quantity' => 25,
                 'reason' => 'Supplier delivery',
+                'batch_no' => 'LOT-4412',
+                'expiry_date' => $expiry,
             ])
             ->assertRedirect();
 
@@ -37,7 +40,47 @@ class StockAdjustmentTest extends TestCase
             'reason' => 'Supplier delivery',
             'user_id' => $admin->id,
         ]);
+
+        // The date the units were received under is recorded against the lot and
+        // snapshotted onto the movement, so the log stands on its own.
+        $batch = $product->batches()->whereNotNull('expiry_date')->sole();
+        $this->assertSame(25, $batch->quantity);
+        $this->assertSame('LOT-4412', $batch->batch_no);
+        $this->assertDatabaseHas('inventory_movements', [
+            'product_id' => $product->id,
+            'batch_id' => $batch->id,
+            'expiry_date' => $expiry,
+        ]);
+
         $this->assertDatabaseHas('audit_logs', ['action' => AuditLogger::STOCK_ADJUSTED]);
+    }
+
+    public function test_a_stock_in_needs_an_expiry_date_or_an_existing_lot(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $product = Product::factory()->create(['stock' => 10]);
+
+        // Neither a lot nor a date: the delivery could never be flagged as
+        // expiring, so it is refused.
+        $this->actingAs($admin)
+            ->post(route('admin.inventory.store', $product), [
+                'type' => InventoryMovementType::StockIn->value,
+                'quantity' => 5,
+                'reason' => 'Supplier delivery',
+            ])
+            ->assertSessionHasErrors('expiry_date');
+
+        $this->assertSame(10, $product->fresh()->stock);
+
+        // A date in the past is refused too.
+        $this->actingAs($admin)
+            ->post(route('admin.inventory.store', $product), [
+                'type' => InventoryMovementType::StockIn->value,
+                'quantity' => 5,
+                'reason' => 'Supplier delivery',
+                'expiry_date' => now()->subDay()->toDateString(),
+            ])
+            ->assertSessionHasErrors('expiry_date');
     }
 
     public function test_stock_out_reduces_the_available_quantity(): void
@@ -141,6 +184,7 @@ class StockAdjustmentTest extends TestCase
             'type' => InventoryMovementType::StockIn->value,
             'quantity' => 10,
             'reason' => 'Delivery',
+            'expiry_date' => now()->addMonths(3)->toDateString(),
         ]);
 
         $this->actingAs($admin)->post(route('admin.inventory.store', $soap), [

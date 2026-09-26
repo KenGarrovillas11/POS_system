@@ -111,8 +111,10 @@ class RefundService
                 ])->save();
 
                 if ($item->product) {
-                    $this->inventory->increase(
-                        $item->product,
+                    // Back onto the lots the units were sold from, so the expiry
+                    // dates they carried are preserved.
+                    $this->inventory->returnToLots(
+                        $item,
                         $quantity,
                         InventoryMovementType::ReturnRestock,
                         sprintf('Refund %s for order %s', $refund->refund_number, $order->order_number),

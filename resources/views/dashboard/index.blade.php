@@ -55,6 +55,10 @@
                     <div class="stat-meta text-body-secondary">
                         <span class="text-danger">{{ $outOfStockCount }} out</span> /
                         <span class="text-warning">{{ $lowStockCount }} low</span>
+                        @if ($expiredCount + $expiringCount > 0)
+                            /
+                            <span class="text-warning">{{ $expiredCount + $expiringCount }} expiring</span>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -444,6 +448,55 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                Expiry Watch
+                @if ($expiredCount + $expiringCount > 0)
+                    <span class="badge text-bg-warning ms-2">{{ $expiredCount + $expiringCount }}</span>
+                @endif
+                <a href="{{ route('inventory.index', ['status' => 'expiring']) }}" class="btn btn-sm btn-outline-secondary ms-auto">
+                    Manage
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <tbody>
+                    @forelse ($expiringProducts as $product)
+                        @php $status = $product->expiryStatus(); @endphp
+                        <tr class="{{ $status === 'expired' ? 'table-danger' : 'table-warning' }}">
+                            <td>
+                                <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-semibold">
+                                    {{ $product->name }}
+                                </a>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge {{ $status === 'expired' ? 'text-bg-danger' : 'text-bg-warning' }}">
+                                    {{ $status === 'expired' ? 'Expired' : 'Soon' }}
+                                </span>
+                            </td>
+                            <td class="text-end small text-body-secondary">
+                                {{ $product->nextExpiryDate()?->format('M j, Y') ?? '—' }}
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="text-center text-body-secondary py-4">
+                                <i class="bi bi-check-circle text-success"></i>
+                                Nothing expires within {{ $expiryWarningDays }} days.
+                            </td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if ($expiredCount > 0)
+                <div class="card-footer bg-body-tertiary small text-danger">
+                    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+                    {{ $expiredCount }} product(s) still hold stock past its expiry date.
+                </div>
+            @endif
         </div>
 
         <div class="card">

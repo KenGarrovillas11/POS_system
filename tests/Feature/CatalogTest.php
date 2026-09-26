@@ -29,6 +29,8 @@ class CatalogTest extends TestCase
             'low_stock_threshold' => 6,
             'unit' => 'pcs',
             'is_active' => 1,
+            // The opening stock becomes a delivery lot, and a lot needs its date.
+            'expiry_date' => now()->addMonths(6)->toDateString(),
         ], $overrides);
     }
 

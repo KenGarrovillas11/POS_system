@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\DiscountType;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Setting;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Session;
@@ -46,7 +47,7 @@ class CartService
             return collect();
         }
 
-        $products = Product::with('category')
+        $products = Product::with(['category', 'batches'])
             ->whereIn('id', array_keys($items))
             ->get()
             ->keyBy('id');
@@ -56,6 +57,17 @@ class CartService
                 $product = $products->get((int) $productId);
                 $quantity = (int) $line['quantity'];
                 $unitPrice = (float) $line['unit_price'];
+
+                // Expiry is a warning, not a block: the till still shows the item
+                // so the cashier can explain it, but stock that has lapsed is
+                // never counted towards what can actually be sold.
+                $batches = $product?->batches ?? collect();
+                $sellable = (int) $batches->filter(fn (ProductBatch $b) => $b->isSellable())->sum('quantity');
+                $expired = (int) $batches->filter(fn (ProductBatch $b) => $b->status() === 'expired')->sum('quantity');
+                $soonest = $batches
+                    ->filter(fn (ProductBatch $b) => $b->hasExpiryDate() && (int) $b->quantity > 0)
+                    ->sortBy(fn (ProductBatch $b) => $b->expiry_date->timestamp)
+                    ->first();
 
                 return [
                     'product_id' => (int) $productId,
@@ -67,9 +79,17 @@ class CartService
                     'category' => $product?->category?->name,
                     // Live stock, used to warn the cashier before checkout.
                     'stock' => $product?->stock,
+                    'sellable_stock' => $product !== null ? $sellable : null,
+                    'expired_stock' => $product !== null ? $expired : null,
+                    'expiry_label' => $soonest?->expiryLabel(),
+                    // Some of the units on the shelf have lapsed...
+                    'is_expired' => $expired > 0,
+                    // ...as opposed to all of them, which means it cannot be sold.
+                    'is_fully_expired' => $expired > 0 && $sellable === 0,
+                    'is_expiring' => $soonest !== null && $soonest->isExpiringSoon(),
                     'is_active' => (bool) ($product?->is_active ?? false),
                     'product_exists' => $product !== null,
-                    'stock_ok' => $product !== null && $product->stock >= $quantity,
+                    'stock_ok' => $product !== null && $sellable >= $quantity,
                 ];
             })
             ->values();

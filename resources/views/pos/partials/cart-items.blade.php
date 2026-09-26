@@ -42,9 +42,20 @@
                     <i class="bi bi-exclamation-triangle me-1"></i>
                     @if ($line['stock'] === null)
                         No longer available
+                    @elseif ($line['is_fully_expired'] ?? false)
+                        All stock past its expiry date
                     @else
-                        Only {{ $line['stock'] }} left in stock
+                        Only {{ $line['sellable_stock'] }} of {{ $line['stock'] }} can be sold &mdash; the rest is expired
                     @endif
+                </div>
+            @elseif ($line['is_expired'] ?? false)
+                <div class="text-danger" style="font-size:0.72rem;">
+                    <i class="bi bi-exclamation-octagon me-1"></i>
+                    Some of this stock is past its expiry date
+                </div>
+            @elseif (! empty($line['is_expiring']) && ! empty($line['expiry_label']))
+                <div class="text-warning-emphasis" style="font-size:0.72rem;">
+                    <i class="bi bi-clock me-1"></i>{{ $line['expiry_label'] }}
                 </div>
             @endif
         </div>

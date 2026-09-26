@@ -51,6 +51,15 @@ class OrderItem extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * The lots this line was drawn from, and how much of each is still out.
+     * A cancellation or refund reverses this split rather than guessing.
+     */
+    public function batchUsages(): HasMany
+    {
+        return $this->hasMany(OrderItemBatch::class);
+    }
+
     public function refundItems(): HasMany
     {
         return $this->hasMany(RefundItem::class);

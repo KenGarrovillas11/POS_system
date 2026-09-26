@@ -2,11 +2,11 @@
 
 @section('title', 'Inventory')
 @section('page-title', 'Inventory')
-@section('page-subtitle', $canAdjust ? 'Stock levels and low-stock alerts' : 'Stock levels (read-only)')
+@section('page-subtitle', $canAdjust ? 'Stock levels, expiry dates and low-stock alerts' : 'Stock levels (read-only)')
 
 @section('content')
 <div class="row g-3 mb-3">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card stat-card h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <span class="stat-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-x-octagon"></i></span>
@@ -17,7 +17,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card stat-card h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <span class="stat-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-exclamation-triangle"></i></span>
@@ -28,7 +28,26 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <a href="{{ route('inventory.index', ['status' => 'expiring']) }}"
+           class="text-decoration-none {{ $expiredCount === 0 && $expiringCount === 0 ? 'd-none' : '' }}">
+            <div class="card stat-card h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-hourglass-split"></i></span>
+                    <div>
+                        <div class="stat-label">Expiring ≤{{ $warningDays }}d</div>
+                        <div class="stat-value">
+                            {{ $expiredCount + $expiringCount }}
+                            @if ($expiredCount > 0)
+                                <span class="badge text-bg-danger">{{ $expiredCount }} expired</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
         <div class="card stat-card h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <span class="stat-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-cash-stack"></i></span>
@@ -40,6 +59,26 @@
         </div>
     </div>
 </div>
+
+@if ($expiredCount > 0)
+    <div class="alert alert-danger d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <div>
+            <strong>{{ $expiredCount }} product(s) hold stock past its expiry date.</strong>
+            Expired units cannot be sold.
+        </div>
+        <a href="{{ route('inventory.index', ['status' => 'expired']) }}" class="btn btn-sm btn-danger ms-auto">Show Expired</a>
+    </div>
+@elseif ($expiringCount > 0)
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-clock-fill"></i>
+        <div>
+            <strong>{{ $expiringCount }} product(s) expire within {{ $warningDays }} days.</strong>
+            Sales draw from the soonest date first.
+        </div>
+        <a href="{{ route('inventory.index', ['status' => 'expiring']) }}" class="btn btn-sm btn-warning ms-auto">Show Expiring</a>
+    </div>
+@endif
 
 @if ($lowStockCount > 0 || $outOfStockCount > 0)
     <div class="alert alert-warning d-flex align-items-center gap-2">
@@ -74,7 +113,13 @@
                 <label for="status" class="form-label small fw-semibold">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">All</option>
-                    @foreach (['low' => 'Low stock', 'out' => 'Out of stock', 'ok' => 'Healthy'] as $value => $label)
+                    @foreach ([
+                        'low' => 'Low stock',
+                        'out' => 'Out of stock',
+                        'ok' => 'Healthy',
+                        'expiring' => 'Expiring soon',
+                        'expired' => 'Expired stock',
+                    ] as $value => $label)
                         <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -102,6 +147,8 @@
                 <th>Product</th>
                 <th>Category</th>
                 <th class="text-center">Stock</th>
+                <th class="text-center">Lots</th>
+                <th>Next Expiry</th>
                 <th class="text-center">Alert At</th>
                 <th class="text-end">Stock Value</th>
                 <th>Status</th>
@@ -111,7 +158,16 @@
             </tr>
             </thead>
             <tbody>
+            @php $columnCount = $canAdjust ? 9 : 8; @endphp
             @forelse ($products as $product)
+                @php
+                    $expiryStatus = $product->expiryStatus();
+                    $soonestBatch = $product->batches
+                        ->filter(fn ($b) => $b->hasExpiryDate() && $b->quantity > 0)
+                        ->sortBy(fn ($b) => $b->expiry_date->timestamp)
+                        ->first();
+                    $nextExpiry = $soonestBatch?->expiry_date;
+                @endphp
                 <tr class="{{ $product->isOutOfStock() ? 'table-danger' : ($product->isLowStock() ? 'table-warning' : '') }}">
                     <td>
                         <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-semibold">
@@ -124,11 +180,37 @@
                             {{ $product->stock }}
                         </span>
                     </td>
+                    <td class="text-center text-body-secondary">
+                        {{ $product->batches->count() }}
+                        @if ($product->batches->count() > 1)
+                            <i class="bi bi-layers" title="Split across several deliveries"></i>
+                        @endif
+                    </td>
+                    <td>
+                        @if ($soonestBatch === null)
+                            <span class="text-body-secondary small">No expiry</span>
+                        @else
+                            <span class="badge {{ match ($expiryStatus) {
+                                'expired' => 'text-bg-danger',
+                                'expiring' => 'text-bg-warning',
+                                default => 'text-bg-light',
+                            } }}">
+                                {{ $nextExpiry->format('M j, Y') }}
+                            </span>
+                            <div class="small {{ $expiryStatus === 'expired' ? 'text-danger' : 'text-body-secondary' }}">
+                                {{ $soonestBatch->expiryLabel() }}
+                            </div>
+                        @endif
+                    </td>
                     <td class="text-center text-body-secondary">{{ $product->low_stock_threshold }}</td>
                     <td class="text-end money">{{ \App\Models\Setting::money($product->stock_value) }}</td>
                     <td>
                         @if ($product->isOutOfStock())
                             <span class="badge text-bg-danger">Out of stock</span>
+                        @elseif ($expiryStatus === 'expired')
+                            <span class="badge text-bg-danger">Expired</span>
+                        @elseif ($expiryStatus === 'expiring')
+                            <span class="badge text-bg-warning">Expiring</span>
                         @elseif ($product->isLowStock())
                             <span class="badge text-bg-warning">Low</span>
                         @else
@@ -137,15 +219,23 @@
                     </td>
                     @if ($canAdjust)
                         <td class="text-end">
-                            <a href="{{ route('admin.inventory.create', $product) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-sliders"></i> Adjust
-                            </a>
+                            <div class="d-flex gap-1 justify-content-end">
+                                @if ($expiryStatus !== 'none')
+                                    <a href="{{ route('admin.batches.index', $product) }}" class="btn btn-sm btn-outline-secondary"
+                                       title="Manage delivery lots and expiry dates">
+                                        <i class="bi bi-layers"></i>
+                                    </a>
+                                @endif
+                                <a href="{{ route('admin.inventory.create', $product) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-sliders"></i> Adjust
+                                </a>
+                            </div>
                         </td>
                     @endif
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ $canAdjust ? 7 : 6 }}" class="text-center text-body-secondary py-4">
+                    <td colspan="{{ $columnCount }}" class="text-center text-body-secondary py-4">
                         <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                         No products match your filters.
                     </td>

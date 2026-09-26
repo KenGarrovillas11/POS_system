@@ -33,7 +33,7 @@
                 <label for="status" class="form-label small fw-semibold">Stock status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">All products</option>
-                    @foreach (['low' => 'Low stock', 'out' => 'Out of stock', 'ok' => 'Healthy'] as $value => $label)
+                    @foreach (['low' => 'Low stock', 'out' => 'Out of stock', 'ok' => 'Healthy', 'expiring' => 'Expiring soon', 'expired' => 'Expired stock'] as $value => $label)
                         <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -86,6 +86,21 @@
             </div>
         </div>
     </div>
+    <div class="col-6 col-lg-3">
+        <a href="{{ route('admin.reports.inventory', ['status' => 'expired']) }}"
+           class="text-decoration-none {{ $expiredCount + $expiringCount === 0 ? 'd-none' : '' }}">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <div class="stat-label">Expiry watch</div>
+                    <div class="stat-value">
+                        <span class="text-warning">{{ $expiringCount }}</span> /
+                        <span class="text-danger">{{ $expiredCount }}</span>
+                    </div>
+                    <div class="stat-meta text-body-secondary">expiring / expired</div>
+                </div>
+            </div>
+        </a>
+    </div>
 </div>
 
 <div class="row g-3">
@@ -99,6 +114,8 @@
                         <th>Product</th>
                         <th>Category</th>
                         <th class="text-center">Stock</th>
+                        <th class="text-center">Sellable</th>
+                        <th>Next Expiry</th>
                         <th class="text-center">Alert</th>
                         <th class="text-end">Cost</th>
                         <th class="text-end">Price</th>
@@ -108,7 +125,8 @@
                     </thead>
                     <tbody>
                     @forelse ($products as $product)
-                        <tr class="{{ $product->isOutOfStock() ? 'table-danger' : ($product->isLowStock() ? 'table-warning' : '') }}">
+                        @php $expiryStatus = $product->expiryStatus(); @endphp
+                        <tr class="{{ $product->isOutOfStock() || $expiryStatus === 'expired' ? 'table-danger' : ($product->isLowStock() || $expiryStatus === 'expiring' ? 'table-warning' : '') }}">
                             <td>
                                 <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-semibold">
                                     {{ $product->name }}
@@ -117,13 +135,36 @@
                             </td>
                             <td>{{ $product->category?->name ?? '—' }}</td>
                             <td class="text-center fw-semibold">{{ $product->stock }}</td>
+                            <td class="text-center">
+                                {{ $product->sellableStock() }}
+                                @if ($product->expiredQuantity() > 0)
+                                    <div class="small text-danger">{{ $product->expiredQuantity() }} expired</div>
+                                @endif
+                            </td>
+                            <td>
+                                @if ($product->nextExpiryDate())
+                                    <span class="badge {{ match ($expiryStatus) {
+                                        'expired' => 'text-bg-danger',
+                                        'expiring' => 'text-bg-warning',
+                                        default => 'text-bg-light',
+                                    } }}">
+                                        {{ $product->nextExpiryDate()->format('M j, Y') }}
+                                    </span>
+                                @else
+                                    <span class="text-body-secondary small">No expiry</span>
+                                @endif
+                            </td>
                             <td class="text-center text-body-secondary">{{ $product->low_stock_threshold }}</td>
                             <td class="text-end money">{{ \App\Models\Setting::money($product->cost_price) }}</td>
                             <td class="text-end money">{{ \App\Models\Setting::money($product->selling_price) }}</td>
                             <td class="text-end money fw-semibold">{{ \App\Models\Setting::money($product->stock_value) }}</td>
                             <td>
-                                @if ($product->isOutOfStock())
+                                @if ($expiryStatus === 'expired')
+                                    <span class="badge text-bg-danger">Expired</span>
+                                @elseif ($product->isOutOfStock())
                                     <span class="badge text-bg-danger">Out</span>
+                                @elseif ($expiryStatus === 'expiring')
+                                    <span class="badge text-bg-warning">Expiring</span>
                                 @elseif ($product->isLowStock())
                                     <span class="badge text-bg-warning">Low</span>
                                 @else

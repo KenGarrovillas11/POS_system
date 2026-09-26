@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Refund;
 use App\Support\SqlDate;
 use Illuminate\Database\Eloquent\Builder;
@@ -138,10 +139,10 @@ class ReportController extends Controller
     {
         $filters = $request->validate([
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
-            'status' => ['nullable', 'in:low,out,ok'],
+            'status' => ['nullable', 'in:low,out,ok,expiring,expired'],
         ]);
 
-        $query = Product::query()->with('category');
+        $query = Product::query()->with(['category', 'batches']);
 
         if (! empty($filters['category_id'])) {
             $query->where('category_id', $filters['category_id']);
@@ -151,6 +152,8 @@ class ReportController extends Controller
             'low' => $query->lowStock(),
             'out' => $query->where('stock', '<=', 0),
             'ok' => $query->whereColumn('stock', '>', 'low_stock_threshold'),
+            'expiring' => $query->expiringStock(),
+            'expired' => $query->expiredStock(),
             default => null,
         };
 
@@ -166,6 +169,9 @@ class ReportController extends Controller
             'filters' => $filters,
             'summary' => $this->inventorySummary(),
             'byCategory' => $this->inventoryByCategory(),
+            'expiringCount' => Product::expiringStock()->count(),
+            'expiredCount' => Product::expiredStock()->count(),
+            'warningDays' => ProductBatch::EXPIRY_WARNING_DAYS,
         ]);
     }
 
@@ -501,20 +507,40 @@ class ReportController extends Controller
         }, $filename, ['Content-Type' => 'text/csv']);
     }
 
+    /**
+     * Inventory CSV, with the per-delivery expiry dates so the sheet can be
+     * used to plan write-offs.
+     */
     private function exportInventory($products, array $filters): StreamedResponse
     {
         $filename = 'inventory-report-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($products) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Product', 'Category', 'Unit', 'Stock', 'Low Stock Threshold', 'Cost', 'Price', 'Stock Value', 'Status']);
+            fputcsv($handle, [
+                'Product', 'Category', 'Unit', 'Stock', 'Sellable', 'Lots',
+                'Next Expiry', 'Expiry Status',
+                'Low Stock Threshold', 'Cost', 'Price', 'Stock Value', 'Status',
+            ]);
 
             foreach ($products as $product) {
+                $expiryStatus = $product->expiryStatus();
+                $nextExpiry = $product->nextExpiryDate();
+
                 fputcsv($handle, [
                     $product->name,
                     $product->category?->name ?? 'Uncategorised',
                     $product->unit,
                     $product->stock,
+                    $product->sellableStock(),
+                    $product->batches->count(),
+                    $nextExpiry?->toDateString() ?? '',
+                    match ($expiryStatus) {
+                        'expired' => 'Expired',
+                        'expiring' => 'Expiring soon',
+                        'ok' => 'Good',
+                        default => 'No expiry',
+                    },
                     $product->low_stock_threshold,
                     number_format((float) $product->cost_price, 2, '.', ''),
                     number_format((float) $product->selling_price, 2, '.', ''),

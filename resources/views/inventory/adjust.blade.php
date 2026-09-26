@@ -7,6 +7,24 @@
 @section('content')
 <div class="row justify-content-center">
     <div class="col-lg-7">
+        @if ($expiredCount > 0)
+            <div class="alert alert-danger d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-octagon-fill mt-1"></i>
+                <div>
+                    <strong>{{ $expiredCount }} lot(s) past the expiry date.</strong>
+                    Pick one below to write the units off, or move them to an adjustment.
+                </div>
+            </div>
+        @elseif ($expiringCount > 0)
+            <div class="alert alert-warning d-flex align-items-start gap-2">
+                <i class="bi bi-clock-fill mt-1"></i>
+                <div>
+                    <strong>{{ $expiringCount }} lot(s) expiring soon.</strong>
+                    Sales draw from the soonest date first.
+                </div>
+            </div>
+        @endif
+
         <div class="card">
             <div class="card-header">Stock Movement</div>
             <div class="card-body">
@@ -60,6 +78,54 @@
                         @error('new_stock')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
+                    {{-- Lot: which delivery the units belong to. Each lot carries
+                         its own expiry date, and a removal with no lot chosen is
+                         drawn from the soonest date first. --}}
+                    <div class="mb-3">
+                        <label for="batch_id" class="form-label">Batch / Lot</label>
+                        <select class="form-select @error('batch_id') is-invalid @enderror" id="batch_id" name="batch_id">
+                            <option value="" @selected(old('batch_id') === '' || old('batch_id') === null)>
+                                Automatic — soonest expiry first
+                            </option>
+                            @foreach ($batches as $batch)
+                                <option value="{{ $batch->id }}" @selected((string) old('batch_id') === (string) $batch->id)>
+                                    {{ $batch->displayLabel() }}
+                                    @if ($batch->status() === 'expired')
+                                        — EXPIRED
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text" id="batch-hint">
+                            Leave on automatic to take units from the lot that expires soonest.
+                        </div>
+                        @error('batch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    {{-- New-lot details: only shown when a stock-in is not being
+                         added to an existing lot. --}}
+                    <div class="mb-3 d-none" id="new-lot-fields">
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <label for="batch_no" class="form-label">Batch Number</label>
+                                <input type="text" maxlength="50" class="form-control @error('batch_no') is-invalid @enderror"
+                                       id="batch_no" name="batch_no" value="{{ old('batch_no') }}"
+                                       placeholder="e.g. LOT-4412">
+                                @error('batch_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="expiry_date" class="form-label">
+                                    Expiry Date <span class="text-danger" id="expiry-required">*</span>
+                                </label>
+                                <input type="date" min="{{ now()->toDateString() }}"
+                                       class="form-control @error('expiry_date') is-invalid @enderror"
+                                       id="expiry_date" name="expiry_date" value="{{ old('expiry_date') }}">
+                                <div class="form-text">Recording the date per delivery is the point of the lot.</div>
+                                @error('expiry_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="reason" class="form-label">Reason <span class="text-danger">*</span></label>
                         <input type="text" class="form-control @error('reason') is-invalid @enderror" id="reason" name="reason"
@@ -93,25 +159,44 @@
     const quantityInput = document.getElementById('quantity');
     const newStockInput = document.getElementById('new_stock');
     const quantityHint = document.getElementById('quantity-hint');
+    const batchSelect = document.getElementById('batch_id');
+    const batchHint = document.getElementById('batch-hint');
+    const newLotFields = document.getElementById('new-lot-fields');
     const preview = document.getElementById('preview');
 
     function selectedType() {
         return document.querySelector('input[name="type"]:checked')?.value;
     }
 
+    function hasExplicitBatch() {
+        return batchSelect.value !== '';
+    }
+
     function toggle() {
-        const isAdjustment = selectedType() === 'adjustment';
+        const type = selectedType();
+        const isAdjustment = type === 'adjustment';
+        const isStockIn = type === 'stock_in';
 
         quantityField.classList.toggle('d-none', isAdjustment);
         newStockField.classList.toggle('d-none', !isAdjustment);
 
         if (isAdjustment) {
             quantityHint.textContent = '';
-        } else if (selectedType() === 'stock_out') {
+        } else if (type === 'stock_out') {
             quantityHint.textContent = `Number of units to remove. ${currentStock} currently in stock.`;
         } else {
             quantityHint.textContent = 'Number of units to add.';
         }
+
+        // New-lot details only make sense for a delivery arriving fresh. A
+        // stock-out never opens a lot, and adding to a chosen lot already has a
+        // date on it.
+        const showNewLot = isStockIn && !hasExplicitBatch();
+        newLotFields.classList.toggle('d-none', !showNewLot);
+
+        batchHint.textContent = hasExplicitBatch()
+            ? 'Units will be taken from the selected lot only.'
+            : 'Leave on automatic to take units from the lot that expires soonest.';
 
         updatePreview();
     }
@@ -137,6 +222,7 @@
     }
 
     typeInputs.forEach((input) => input.addEventListener('change', toggle));
+    batchSelect.addEventListener('change', toggle);
     quantityInput.addEventListener('input', updatePreview);
     newStockInput.addEventListener('input', updatePreview);
 

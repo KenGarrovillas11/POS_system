@@ -28,6 +28,12 @@ class ProductRequest extends FormRequest
             'low_stock_threshold' => ['required', 'integer', 'min:0', 'max:1000000'],
             'unit' => ['required', 'string', 'max:20'],
             'is_active' => ['nullable', 'boolean'],
+
+            // Required when creating: the opening stock becomes a delivery lot,
+            // and a lot with no date can never be flagged as expiring. The edit
+            // form does not send it, because a product can hold several lots.
+            'expiry_date' => $this->expiryRules(),
+
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'remove_image' => ['nullable', 'boolean'],
         ];
@@ -58,9 +64,31 @@ class ProductRequest extends FormRequest
     {
         return [
             'category_id' => 'category',
+            'expiry_date' => 'expiry date',
             'image' => 'product image',
             'remove_image' => 'remove image',
         ];
+    }
+
+    /**
+     * Whether this request is creating a product rather than editing one.
+     */
+    public function isCreating(): bool
+    {
+        return $this->route('product') === null;
+    }
+
+    /**
+     * The expiry date is mandatory on create and absent on edit, so the rule
+     * relaxes for the edit case rather than failing a field the form never shows.
+     *
+     * @return list<mixed>
+     */
+    public function expiryRules(): array
+    {
+        return $this->isCreating()
+            ? ['required', 'date', 'after_or_equal:today']
+            : ['nullable', 'date', 'after_or_equal:today'];
     }
 
     protected function prepareForValidation(): void

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\BatchController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InventoryController;
@@ -120,6 +121,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('inventory/movements', [InventoryController::class, 'movements'])->name('inventory.movements');
     Route::get('products/{product}/stock', [InventoryController::class, 'create'])->name('inventory.create');
     Route::post('products/{product}/stock', [InventoryController::class, 'store'])->name('inventory.store');
+
+    // Delivery lots and their expiry dates
+    Route::get('products/{product}/batches', [BatchController::class, 'index'])->name('batches.index');
+    Route::post('products/{product}/batches', [BatchController::class, 'store'])->name('batches.store');
+    Route::put('batches/{batch}', [BatchController::class, 'update'])->name('batches.update');
+    Route::delete('batches/{batch}', [BatchController::class, 'destroy'])->name('batches.destroy');
 
     // Refunds / returns
     Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');

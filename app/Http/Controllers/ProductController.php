@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Http\Requests\ProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Services\InventoryService;
 use App\Support\AuditLogger;
 use Illuminate\Database\Eloquent\Builder;
@@ -60,11 +61,21 @@ class ProductController extends Controller
 
     public function show(Product $product): View
     {
-        $product->load('category');
+        $product->load(['category', 'batches']);
+
+        // The lot holding stock that expires soonest, expired included - it is
+        // the deadline the shop actually has to act on.
+        $soonestBatch = $product->batches
+            ->filter(fn (ProductBatch $batch) => $batch->hasExpiryDate() && (int) $batch->quantity > 0)
+            ->sortBy(fn (ProductBatch $batch) => $batch->expiry_date->timestamp)
+            ->first();
 
         return view('products.show', [
             'product' => $product,
-            'movements' => $product->inventoryMovements()->with('user')->latest()->limit(20)->get(),
+            'soonestBatch' => $soonestBatch,
+            'expiringCount' => $product->batches->filter(fn (ProductBatch $b) => $b->status() === 'expiring')->count(),
+            'expiredCount' => $product->batches->filter(fn (ProductBatch $b) => $b->status() === 'expired')->count(),
+            'movements' => $product->inventoryMovements()->with(['user', 'batch'])->latest()->limit(20)->get(),
             'sales' => $product->orderItems()
                 ->whereHas('order', fn (Builder $q) => $q->where('status', '!=', OrderStatus::Cancelled->value))
                 ->with('order')
@@ -92,12 +103,18 @@ class ProductController extends Controller
     {
         $data = $request->validated();
         $openingStock = (int) ($data['stock'] ?? 0);
+        $expiryDate = $data['expiry_date'];
 
-        $product = DB::transaction(function () use ($request, $data, $openingStock) {
+        // expiry_date belongs to the opening lot, not the product row.
+        unset($data['expiry_date']);
+
+        $product = DB::transaction(function () use ($request, $data, $openingStock, $expiryDate) {
             // Start at zero so the opening quantity is applied - and logged - once.
             $product = Product::create(array_merge($data, ['stock' => 0]));
 
             if ($openingStock > 0) {
+                // The opening stock becomes the first delivery lot, carrying the
+                // expiry date from the form.
                 app(InventoryService::class)->increase(
                     $product,
                     $openingStock,
@@ -105,6 +122,8 @@ class ProductController extends Controller
                     'Opening stock',
                     null,
                     $request->user(),
+                    null,
+                    ['expiry_date' => $expiryDate],
                 );
             }
 
@@ -129,7 +148,7 @@ class ProductController extends Controller
     public function edit(Product $product): View
     {
         return view('products.edit', [
-            'product' => $product,
+            'product' => $product->load('batches'),
             'categories' => Category::orderBy('name')->get(),
         ]);
     }
@@ -143,6 +162,10 @@ class ProductController extends Controller
         // Stock is deliberately left out of the mass assignment so the change
         // flows through InventoryService and keeps a before/after trail.
         unset($data['stock']);
+
+        // Expiry dates live on the delivery lots, and the edit form does not
+        // offer one: a product can hold several lots with different dates.
+        unset($data['expiry_date']);
 
         DB::transaction(function () use ($product, $data, $newStock, $request) {
             $stockChanged = $newStock !== (int) $product->stock;

@@ -49,6 +49,7 @@
                 <th class="text-center">Change</th>
                 <th class="text-center">Before</th>
                 <th class="text-center">After</th>
+                <th>Lot</th>
                 <th>Reason</th>
                 <th>By</th>
                 <th>Reference</th>
@@ -73,6 +74,20 @@
                     </td>
                     <td class="text-center text-body-secondary">{{ $movement->before_stock }}</td>
                     <td class="text-center fw-semibold">{{ $movement->after_stock }}</td>
+                    <td class="small">
+                        @if ($movement->batch)
+                            <span class="badge text-bg-light">{{ $movement->batch->batch_no ?: 'Unlabelled' }}</span>
+                        @else
+                            <span class="text-body-secondary">—</span>
+                        @endif
+                        {{-- Snapshotted at the time of the movement, so the entry
+                             stays accurate if the lot is later re-dated. --}}
+                        @if ($movement->expiry_date)
+                            <div class="text-body-secondary">
+                                {{ $movement->expiry_date->format('M j, Y') }}
+                            </div>
+                        @endif
+                    </td>
                     <td class="small text-body-secondary">{{ $movement->reason ?? '—' }}</td>
                     <td class="small">{{ $movement->user?->name ?? 'System' }}</td>
                     <td class="small text-body-secondary">
@@ -85,7 +100,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9" class="text-center text-body-secondary py-4">
+                    <td colspan="10" class="text-center text-body-secondary py-4">
                         <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                         No stock movements match your filters.
                     </td>

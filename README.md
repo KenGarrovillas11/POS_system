@@ -7,6 +7,7 @@ A point-of-sale and inventory management application built with Laravel 12, Boot
 - **Till** - name/description search, cart with quantity edits, percentage or fixed discounts, cash/card/mobile payments, change calculation and printable receipts.
 - **Orders** - searchable history with status and payment filters. Staff only ever see their own sales; admins see everything.
 - **Inventory** - stock-in, stock-out and absolute adjustments, a filterable movement log, low-stock and out-of-stock alerts, CSV export.
+- **Batch expiry dates** - stock is held as delivery lots, each with its own expiration date and optional batch number. Sales draw first-expiry-first-out and never touch a lapsed lot; cancelling or refunding puts units back on the exact lots they left. Expired and expiring-soon warnings appear on the till, the inventory list, the product page, the dashboard and the reports.
 - **Refunds and cancellations** - partial or full refunds per line item, restocking of returned units, and order cancellation with automatic restock.
 - **Reports** - sales, revenue and inventory reports with date ranges, previous-period comparison, per-day/payment-method/cashier breakdowns and CSV exports.
 - **Administration** - product and category CRUD, product photos, staff accounts, store settings (currency, tax rate, receipt footer) and a searchable audit log.
@@ -89,6 +90,7 @@ The last active administrator cannot be demoted, deactivated or deleted, and an 
 |-----------------|----------------------------------------------------------------------------------------|
 | Checkout        | `app/Services/CheckoutService.php` - pricing, discounts, tax, stock decrement in a transaction |
 | Stock           | `app/Services/InventoryService.php` - every quantity change writes an `inventory_movements` row |
+| Batch expiry    | `app/Models/ProductBatch.php` + `InventoryService` - lots, FEFO sale allocation, exact-lot returns |
 | Refunds         | `app/Services/RefundService.php` - per-line refunds, restock, order status roll-up      |
 | Authorisation   | `App\Http\Middleware\EnsureUserHasRole` + per-order checks in `OrderController`          |
 | Audit trail     | `App\Support\AuditLogger` - `audit_logs` rows for sensitive actions and denied access   |
@@ -99,6 +101,27 @@ Stock is never written directly from a controller: it always goes through `Inven
 
 The buying price is frozen onto each sold line (`order_items.unit_cost`) at the moment of sale, so editing a product's cost later never rewrites historic profit. Reports and the dashboard's "sold" view use that frozen figure; the dashboard's "current stock" view uses today's prices.
 
+### How stock and expiry fit together
+
+Stock is **not** a single number on the product any more. It lives in `product_batches`, one row per delivery:
+
+| Table                 | Holds                                                                     |
+|-----------------------|---------------------------------------------------------------------------|
+| `product_batches`     | `product_id`, `batch_no`, `expiry_date`, `quantity` - the actual stock     |
+| `products.stock`      | a **cached sum** of the lots above, written only by `InventoryService`     |
+| `order_item_batches`  | which lot each sold line came from and how much of it is still out        |
+| `inventory_movements` | `batch_id` plus an `expiry_date` snapshot, so the log stands on its own    |
+
+Three rules govern movement, all enforced in `InventoryService`:
+
+1. **Sales are first-expiry-first-out.** A decrease with no lot named is spread across the sellable lots in expiry order. Undated lots sort last, so they are only used once every dated lot is gone. Expired lots are skipped entirely, and a lot is good *through* its expiry date.
+2. **Expired stock cannot be sold.** It is still counted in `products.stock` (it is physically on the shelf) but never in `sellableStock()`. The till refuses to add a wholly-expired product to the cart, and checkout rejects any line that exceeds the sellable total.
+3. **Returns go back where they came from.** `order_item_batches` records the exact split of every sale, so a cancellation or a partial refund unwinds the consumption order rather than guessing a lot. Units whose lot has since been deleted fall back to the undated general bucket.
+
+Because `products.stock` is a cached sum it could in principle drift, so `BatchExpiryTest` asserts `stock === SUM(lots)` after every kind of movement, and the `000900` migration adopts any pre-existing flat stock as one undated lot.
+
+Receiving stock requires an expiry date (or an explicit existing lot) so a delivery can never be recorded in a way that makes it impossible to flag later. Writing off lapsed goods is a stock-out against a named lot, which is why the adjust screen lets you pick one.
+
 ## Testing
 
 The suite uses in-memory SQLite and `RefreshDatabase`:
@@ -107,7 +130,7 @@ The suite uses in-memory SQLite and `RefreshDatabase`:
 php artisan test
 ```
 
-95 feature tests / 440 assertions cover login, the till and checkout, stock adjustments, refunds, cancellations, catalogue CRUD, reports and exports, settings, user management and role enforcement.
+203 feature tests / 1133 assertions cover login, the till and checkout, stock adjustments, batch expiry and FEFO allocation, refunds, cancellations, catalogue CRUD, reports and exports, settings, user management, role enforcement and page rendering.
 
 To exercise the same suite against MySQL (recommended after touching raw SQL):
 

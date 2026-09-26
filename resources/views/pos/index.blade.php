@@ -47,12 +47,24 @@
         @else
             <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3 pos-grid">
                 @foreach ($products as $product)
+                    @php
+                        $sellable = $product->sellableStock();
+                        $expired = $product->expiredQuantity();
+                        $expiryStatus = $product->expiryStatus();
+                        $soonest = $product->batches
+                            ->filter(fn ($b) => $b->hasExpiryDate() && (int) $b->quantity > 0)
+                            ->sortBy(fn ($b) => $b->expiry_date->timestamp)
+                            ->first();
+                        $blocked = $sellable <= 0;
+                    @endphp
                     <div class="col">
-                        <div class="card pos-product-card {{ $product->isOutOfStock() ? 'disabled' : '' }}"
+                        {{-- A product whose every lot has lapsed cannot be sold,
+                             even though stock is still counted. --}}
+                        <div class="card pos-product-card {{ $blocked ? 'disabled' : '' }}"
                              data-product-id="{{ $product->id }}"
-                             data-stock="{{ $product->stock }}"
+                             data-stock="{{ $sellable }}"
                              role="button" tabindex="0"
-                             aria-disabled="{{ $product->isOutOfStock() ? 'true' : 'false' }}">
+                             aria-disabled="{{ $blocked ? 'true' : 'false' }}">
                             <div class="card-body p-2 text-center">
                                 @if ($product->hasImage())
                                     <img src="{{ $product->imageUrl() }}" alt="{{ $product->name }}" loading="lazy"
@@ -65,12 +77,19 @@
                                 <div class="small fw-semibold text-truncate" title="{{ $product->name }}">{{ $product->name }}</div>
                                 <div class="fw-bold mt-1 money">{{ \App\Models\Setting::money($product->selling_price) }}</div>
 
-                                @if ($product->isOutOfStock())
-                                    <span class="badge text-bg-danger mt-1">Out of stock</span>
-                                @elseif ($product->isLowStock())
-                                    <span class="badge text-bg-warning mt-1">{{ $product->stock }} left</span>
+                                @if ($blocked)
+                                    <span class="badge text-bg-danger mt-1">Expired</span>
+                                @elseif ($expiryStatus === 'expiring')
+                                    <span class="badge text-bg-warning mt-1">
+                                        {{ $soonest?->expiry_date->format('M j') }}
+                                    </span>
+                                    <div class="small text-warning-emphasis">Expiring soon</div>
+                                @elseif ($expired > 0)
+                                    <span class="badge text-bg-warning mt-1">{{ $sellable }} sellable</span>
+                                @elseif ($sellable <= $product->low_stock_threshold)
+                                    <span class="badge text-bg-warning mt-1">{{ $sellable }} left</span>
                                 @else
-                                    <span class="badge text-bg-light text-body-secondary mt-1">{{ $product->stock }} in stock</span>
+                                    <span class="badge text-bg-light text-body-secondary mt-1">{{ $sellable }} in stock</span>
                                 @endif
                             </div>
                         </div>

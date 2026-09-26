@@ -56,6 +56,20 @@ class OrderService
                 if ($product->stock < (int) $line['quantity']) {
                     throw new InsufficientStockException($product, (int) $line['quantity']);
                 }
+
+                // Stock on hand is not the same as stock that may be sold: an
+                // expired lot is still counted in products.stock but FEFO is
+                // not allowed to draw from it.
+                $sellable = $product->sellableStock();
+
+                if ($sellable < (int) $line['quantity']) {
+                    throw new InsufficientStockException(
+                        $product,
+                        (int) $line['quantity'],
+                        $sellable,
+                        $product->expiredQuantity(),
+                    );
+                }
             }
 
             $subtotal = 0.0;
@@ -107,7 +121,18 @@ class OrderService
                 $product = $products->get((int) $productId);
                 $quantity = (int) $line['quantity'];
 
-                $order->items()->create([
+                // FEFO: the service draws from the soonest-expiring lots first
+                // and may span several, so the split is read back and recorded.
+                $movements = $this->inventory->decrease(
+                    $product,
+                    $quantity,
+                    InventoryMovementType::Sale,
+                    sprintf('Sale %s', $order->order_number),
+                    $order,
+                    $cashier,
+                );
+
+                $item = $order->items()->create([
                     'product_id' => $product->getKey(),
                     'product_name' => $product->name,
                     'unit_price' => $line['unit_price'],
@@ -120,14 +145,14 @@ class OrderService
                     'line_total' => $lineTotals[$productId],
                 ]);
 
-                $this->inventory->decrease(
-                    $product,
-                    $quantity,
-                    InventoryMovementType::Sale,
-                    sprintf('Sale %s', $order->order_number),
-                    $order,
-                    $cashier,
-                );
+                // Record which lot each unit left from, so a cancellation or a
+                // refund can put it back on the same date it came off.
+                foreach ($movements as $movement) {
+                    $item->batchUsages()->create([
+                        'batch_id' => $movement->batch_id,
+                        'quantity' => abs((int) $movement->quantity),
+                    ]);
+                }
             }
 
             AuditLogger::record(
@@ -168,8 +193,9 @@ class OrderService
                     continue;
                 }
 
-                $this->inventory->increase(
-                    $item->product,
+                // Back onto the exact lots the units were sold from, dates intact.
+                $this->inventory->returnToLots(
+                    $item,
                     $item->quantity,
                     InventoryMovementType::SaleCancellation,
                     sprintf('Order %s cancelled', $order->order_number),

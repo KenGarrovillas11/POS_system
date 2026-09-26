@@ -7,6 +7,7 @@ use App\Exceptions\InsufficientStockException;
 use App\Http\Requests\CheckoutRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Services\CartService;
 use App\Services\OrderService;
 use Illuminate\Database\Eloquent\Collection;
@@ -79,7 +80,7 @@ class PosController extends Controller
     {
         $query = Product::query()
             ->active()
-            ->with('category')
+            ->with(['category', 'batches'])
             ->orderBy('name');
 
         if ($term = trim((string) $request->input('q'))) {
@@ -105,15 +106,24 @@ class PosController extends Controller
             'in_stock' => ['nullable', 'boolean'],
         ]);
 
-        $products = $this->searchProducts($request->merge($validated))->map(fn (Product $product) => [
-            'id' => $product->id,
-            'name' => $product->name,
-            'category' => $product->category?->name,
-            'image' => $product->imageUrl(),
-            'price' => (float) $product->selling_price,
-            'stock' => (int) $product->stock,
-            'unit' => $product->unit,
-        ]);
+        $products = $this->searchProducts($request->merge($validated))->map(function (Product $product) {
+            $soonest = $product->batches
+                ->filter(fn (ProductBatch $b) => $b->hasExpiryDate() && (int) $b->quantity > 0)
+                ->sortBy(fn (ProductBatch $b) => $b->expiry_date->timestamp)
+                ->first();
+
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'category' => $product->category?->name,
+                'image' => $product->imageUrl(),
+                'price' => (float) $product->selling_price,
+                'stock' => (int) $product->stock,
+                'sellable_stock' => $product->sellableStock(),
+                'expiry_label' => $soonest?->expiryLabel(),
+                'unit' => $product->unit,
+            ];
+        });
 
         return response()->json([
             'data' => $products,
@@ -138,14 +148,33 @@ class PosController extends Controller
 
         $quantity = (int) ($validated['quantity'] ?? 1);
 
-        if ($product->stock < $quantity) {
-            return response()->json([
-                'message' => sprintf(
-                    'Only %d unit(s) of "%s" left in stock.',
-                    $product->stock,
+        // Stock on hand includes lots that have passed their date. FEFO cannot
+        // sell those, so the till must not either.
+        $sellable = $product->sellableStock();
+
+        if ($sellable < $quantity) {
+            $expired = $product->expiredQuantity();
+
+            $message = match (true) {
+                $sellable === 0 && $expired > 0 => sprintf(
+                    'All %d unit(s) of "%s" are past their expiry date and cannot be sold.',
+                    $expired,
                     $product->name,
                 ),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+                $expired > 0 => sprintf(
+                    'Only %d of %d unit(s) of "%s" can be sold - the rest are past their expiry date.',
+                    $sellable,
+                    (int) $product->stock,
+                    $product->name,
+                ),
+                default => sprintf(
+                    'Only %d unit(s) of "%s" left in stock.',
+                    $sellable,
+                    $product->name,
+                ),
+            };
+
+            return response()->json(['message' => $message], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $this->cart->add($product, $quantity);

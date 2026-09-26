@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Refund;
 use App\Models\User;
 use App\Support\SqlDate;
@@ -70,6 +71,15 @@ class DashboardController extends Controller
             'lowStockProducts' => Product::lowStock()->with('category')->orderBy('stock')->limit(10)->get(),
             'outOfStockCount' => Product::where('stock', '<=', 0)->count(),
             'lowStockCount' => Product::lowStock()->count(),
+            'expiredCount' => Product::expiredStock()->count(),
+            'expiringCount' => Product::expiringStock()->count(),
+            'expiryWarningDays' => ProductBatch::EXPIRY_WARNING_DAYS,
+            'expiringProducts' => Product::query()
+                ->whereHas('batches', fn ($q) => $q->expiringWithin())
+                ->with('category')
+                ->orderBy('stock')
+                ->limit(10)
+                ->get(),
             'totalProducts' => Product::where('is_active', true)->count(),
 
             'recentOrders' => Order::query()
