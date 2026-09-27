@@ -4,6 +4,27 @@
 @section('page-title', 'Products')
 @section('page-subtitle', auth()->user()->isAdmin() ? 'Manage your catalog' : 'Browse the product catalog')
 
+@php
+    // The controls that actually narrow the result set. Sort and direction only
+    // reorder, so they are shown as active but never counted in the badge.
+    $activeFilterCount = collect([
+        $filters['q'] ?? null,
+        $filters['category_id'] ?? null,
+        $filters['status'] ?? null,
+    ])->filter(fn ($value) => $value !== null && $value !== '')->count();
+
+    $hasFilters = $activeFilterCount > 0;
+
+    $activeStatusLabels = [
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+        'low' => 'Low stock',
+        'out' => 'Out of stock',
+    ];
+
+    $activeCategoryName = $categories->firstWhere('id', (int) ($filters['category_id'] ?? 0))?->name;
+@endphp
+
 @section('content')
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="text-body-secondary small">
@@ -13,20 +34,52 @@
         @endunless
     </div>
 
-    @if (auth()->user()->isAdmin())
-        <div class="d-flex gap-2">
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse"
+                data-bs-target="#productFilters" aria-expanded="{{ $hasFilters ? 'true' : 'false' }}"
+                aria-controls="productFilters">
+            <i class="bi bi-funnel me-1"></i>Filters
+            @if ($activeFilterCount > 0)
+                <span class="badge text-bg-secondary ms-1">{{ $activeFilterCount }}</span>
+            @endif
+        </button>
+
+        @if (auth()->user()->isAdmin())
             <a href="{{ route('admin.categories.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-tags me-1"></i>Categories
             </a>
             <a href="{{ route('admin.products.create') }}" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-lg me-1"></i>New Product
             </a>
-        </div>
-    @endif
+        @endif
+    </div>
 </div>
 
-<div class="card mb-3">
-    <div class="card-body">
+@if ($hasFilters)
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
+        <span class="text-body-secondary">Active filters:</span>
+        @if (! empty($filters['q']))
+            <span class="badge text-bg-light border text-body-secondary">
+                Search: {{ $filters['q'] }}
+            </span>
+        @endif
+        @if (! empty($activeCategoryName))
+            <span class="badge text-bg-light border text-body-secondary">
+                Category: {{ $activeCategoryName }}
+            </span>
+        @endif
+        @if (! empty($filters['status']))
+            <span class="badge text-bg-light border text-body-secondary">
+                {{ $activeStatusLabels[$filters['status']] ?? $filters['status'] }}
+            </span>
+        @endif
+        <a href="{{ route('products.index') }}" class="btn btn-link btn-sm p-0">Clear all</a>
+    </div>
+@endif
+
+<div class="collapse {{ $hasFilters ? 'show' : '' }}" id="productFilters">
+    <div class="card mb-3">
+        <div class="card-body">
         <form method="GET" action="{{ route('products.index') }}" class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label for="q" class="form-label small fw-semibold">Search</label>
@@ -67,7 +120,16 @@
                     </select>
                 </div>
             </div>
+            <div class="col-md-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-funnel me-1"></i>Apply Filters
+                </button>
+                @if ($hasFilters)
+                    <a href="{{ route('products.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                @endif
+            </div>
         </form>
+        </div>
     </div>
 </div>
 
