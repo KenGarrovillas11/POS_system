@@ -126,6 +126,21 @@ class CartService
             return;
         }
 
+        // A line can never hold more than the stock that can actually be sold.
+        // The till caps this in the browser, but the cap has to hold here too or
+        // a hand-rolled PATCH could park an oversell in the cart.
+        $sellable = Product::find($productId)?->sellableStock();
+
+        if ($sellable !== null) {
+            $quantity = min($quantity, max(0, $sellable));
+        }
+
+        if ($quantity <= 0) {
+            $this->remove($productId);
+
+            return;
+        }
+
         $cart['items'][$productId]['quantity'] = $quantity;
         $this->put($cart);
     }

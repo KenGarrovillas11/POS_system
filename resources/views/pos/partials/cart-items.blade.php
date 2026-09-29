@@ -18,17 +18,19 @@
 
             <div class="d-flex align-items-center gap-2 mt-1">
                 <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
-                        data-cart-qty="{{ $line['product_id'] }}" data-step="-1"
-                        onclick="this.nextElementSibling.stepDown(); this.nextElementSibling.dispatchEvent(new Event('change'))"
+                        data-cart-step="-1"
                         aria-label="Decrease quantity">&minus;</button>
 
                 <input type="number" min="0" step="1" value="{{ $line['quantity'] }}"
+                       @if ($line['sellable_stock'] !== null) max="{{ $line['sellable_stock'] }}" @endif
                        class="form-control form-control-sm qty-input py-0"
                        data-cart-qty="{{ $line['product_id'] }}"
+                       data-max="{{ $line['sellable_stock'] ?? '' }}"
+                       data-name="{{ $line['name'] }}"
                        aria-label="Quantity for {{ $line['name'] }}">
 
                 <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
-                        onclick="this.previousElementSibling.stepUp(); this.previousElementSibling.dispatchEvent(new Event('change'))"
+                        data-cart-step="1"
                         aria-label="Increase quantity">+</button>
 
                 <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-auto text-decoration-none"

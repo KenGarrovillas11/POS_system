@@ -352,18 +352,65 @@
         refreshCheckoutButton();
     }
 
+    /** The most of this product that can actually be sold, or null if unknown. */
+    function maxFor(input) {
+        return input.dataset.max === '' ? null : parseInt(input.dataset.max, 10);
+    }
+
+    function stockWarning(input, max) {
+        return `Only ${max} of "${input.dataset.name || 'this product'}" is in stock and can be sold.`;
+    }
+
+    /**
+     * The -/+ buttons. Stepping past the ceiling keeps the value where it is and
+     * says so, rather than quietly walking it back.
+     */
+    function bumpQty(input, delta) {
+        const max = maxFor(input);
+        const next = (parseInt(input.value || '0', 10) || 0) + delta;
+
+        if (max !== null && next > max) {
+            input.value = max;
+            alert(stockWarning(input, max));
+            return;
+        }
+
+        input.value = Math.max(0, next);
+        input.dispatchEvent(new Event('change'));
+    }
+
     function renderCart(html) {
         cartItemsEl.innerHTML = html;
         bindCartControls();
     }
 
     function bindCartControls() {
-        cartItemsEl.querySelectorAll('[data-cart-qty]').forEach((input) => {
+        cartItemsEl.querySelectorAll('[data-cart-step]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const up = button.dataset.cartStep === '1';
+                const input = up ? button.previousElementSibling : button.nextElementSibling;
+
+                bumpQty(input, up ? 1 : -1);
+            });
+        });
+
+        cartItemsEl.querySelectorAll('input[data-cart-qty]').forEach((input) => {
             input.addEventListener('change', async () => {
                 const productId = input.dataset.cartQty;
-                const data = await request(`${cartUrl}/${productId}`, 'PATCH', {
-                    quantity: parseInt(input.value || '0', 10),
-                });
+                const max = maxFor(input);
+                const wanted = parseInt(input.value || '0', 10);
+
+                // A line can never hold more than the stock that can actually be
+                // sold. Overtyping is rejected back to a single unit rather than
+                // silently clamped, so the cashier sees the box change instead of
+                // the request quietly becoming something else.
+                if (max !== null && wanted > max) {
+                    alert(stockWarning(input, max));
+                }
+
+                const quantity = max !== null && wanted > max ? 1 : wanted;
+
+                const data = await request(`${cartUrl}/${productId}`, 'PATCH', { quantity });
 
                 if (data) {
                     renderCart(data.items_html);

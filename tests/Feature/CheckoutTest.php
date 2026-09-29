@@ -362,6 +362,71 @@ class CheckoutTest extends TestCase
             ->assertSee($product->name);
     }
 
+    public function test_a_cart_line_cannot_be_pushed_past_the_sellable_stock(): void
+    {
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 5.00)->create(['stock' => 4]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 2]);
+
+        // Asking for more than is on the shelf is trimmed to what can be sold,
+        // so the cart can never be sitting on an oversell.
+        $this->actingAs($cashier)
+            ->patchJson(route('pos.cart.update', $product->id), ['quantity' => 99])
+            ->assertOk();
+
+        $this->assertSame(4, app(CartService::class)->totalQuantity());
+    }
+
+    public function test_expired_units_do_not_raise_the_cart_ceiling(): void
+    {
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 5.00)->create(['stock' => 0]);
+
+        $product->batches()->create(['expiry_date' => now()->addMonths(6), 'quantity' => 3]);
+        $product->batches()->create(['expiry_date' => now()->subDay(), 'quantity' => 8]);
+        $product->forceFill(['stock' => 11])->save();
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        // 11 on the shelf but only 3 sellable, so 3 is the ceiling.
+        $this->actingAs($cashier)
+            ->patchJson(route('pos.cart.update', $product->id), ['quantity' => 11])
+            ->assertOk();
+
+        $this->assertSame(3, app(CartService::class)->totalQuantity());
+    }
+
+    public function test_the_cart_box_advertises_the_ceiling_to_the_browser(): void
+    {
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 5.00)->create(['stock' => 6]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 2]);
+
+        $response = $this->actingAs($cashier)->get(route('pos.index'))->assertOk();
+
+        // max/data-max is what stops the + button stepping past the stock, and
+        // data-name is what the ceiling warning names in the message.
+        $this->assertStringContainsString('data-max="6"', $response->getContent());
+        $this->assertStringContainsString('max="6"', $response->getContent());
+        $this->assertStringContainsString('data-name="'.$product->name.'"', $response->getContent());
+    }
+
+    public function test_a_cart_line_below_the_ceiling_is_left_alone(): void
+    {
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 5.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 2]);
+
+        $this->actingAs($cashier)
+            ->patchJson(route('pos.cart.update', $product->id), ['quantity' => 7])
+            ->assertOk();
+
+        $this->assertSame(7, app(CartService::class)->totalQuantity());
+    }
+
     public function test_cart_endpoints_update_and_clear_the_cart(): void
     {
         $cashier = User::factory()->staff()->create();
