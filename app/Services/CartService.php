@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\DiscountType;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\Setting;
@@ -26,7 +25,7 @@ class CartService
     {
         $cart = Session::get(self::SESSION_KEY, []);
 
-        return is_array($cart) ? $cart + ['items' => [], 'discount_type' => 'fixed', 'discount_value' => 0, 'note' => null] : $cart;
+        return is_array($cart) ? $cart + ['items' => [], 'note' => null] : $cart;
     }
 
     public function put(array $cart): void
@@ -143,14 +142,6 @@ class CartService
         Session::forget(self::SESSION_KEY);
     }
 
-    public function setDiscount(DiscountType $type, float $value): void
-    {
-        $cart = $this->raw();
-        $cart['discount_type'] = $type->value;
-        $cart['discount_value'] = $value;
-        $this->put($cart);
-    }
-
     public function setNote(?string $note): void
     {
         $cart = $this->raw();
@@ -174,9 +165,9 @@ class CartService
     }
 
     /**
-     * Cart subtotal, discount, tax and grand total.
+     * Cart subtotal, tax and grand total.
      *
-     * @return array{subtotal: float, discount_type: string, discount_value: float, discount_amount: float, taxable: float, tax_rate: float, tax_amount: float, total: float, item_count: int, quantity: int}
+     * @return array{subtotal: float, tax_rate: float, tax_amount: float, total: float, item_count: int, quantity: int}
      */
     public function totals(): array
     {
@@ -188,27 +179,14 @@ class CartService
             2
         );
 
-        $type = DiscountType::tryFrom($raw['discount_type'] ?? 'fixed') ?? DiscountType::Fixed;
-        $value = max(0, (float) ($raw['discount_value'] ?? 0));
-
-        $discountAmount = match ($type) {
-            DiscountType::Percentage => round($subtotal * min($value, 100) / 100, 2),
-            DiscountType::Fixed => min(round($value, 2), $subtotal),
-        };
-
-        $taxable = round(max(0, $subtotal - $discountAmount), 2);
         $taxRate = Setting::taxRate();
-        $taxAmount = round($taxable * $taxRate / 100, 2);
+        $taxAmount = round($subtotal * $taxRate / 100, 2);
 
         return [
             'subtotal' => $subtotal,
-            'discount_type' => $type->value,
-            'discount_value' => $value,
-            'discount_amount' => $discountAmount,
-            'taxable' => $taxable,
             'tax_rate' => $taxRate,
             'tax_amount' => $taxAmount,
-            'total' => round($taxable + $taxAmount, 2),
+            'total' => round($subtotal + $taxAmount, 2),
             'item_count' => $this->count(),
             'quantity' => $this->totalQuantity(),
         ];

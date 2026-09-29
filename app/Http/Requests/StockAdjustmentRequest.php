@@ -96,12 +96,22 @@ class StockAdjustmentRequest extends FormRequest
                 return;
             }
 
-            if ($quantity > (int) $product->stock) {
-                $validator->errors()->add('quantity', sprintf(
-                    'Cannot remove %d units - only %d in stock.',
-                    $quantity,
-                    $product->stock,
-                ));
+            // Units past their date are counted in products.stock but cannot be
+            // drawn by first-expiry-first-out, so the limit is the sellable
+            // total. Removing them is still possible - name the lapsed lot.
+            $sellable = $product->sellableStock();
+
+            if ($quantity > $sellable) {
+                $expired = $product->expiredQuantity();
+
+                $validator->errors()->add('quantity', $expired > 0
+                    ? sprintf(
+                        'Cannot remove %d units - only %d can be used, the other %d are past their expiry date. Pick that lot to write them off.',
+                        $quantity,
+                        $sellable,
+                        $expired,
+                    )
+                    : sprintf('Cannot remove %d units - only %d in stock.', $quantity, $sellable));
             }
         });
 

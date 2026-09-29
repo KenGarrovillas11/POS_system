@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Enums\InventoryMovementType;
+use App\Exceptions\InsufficientStockException;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\InventoryService;
 use App\Support\AuditLogger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class StockAdjustmentTest extends TestCase
@@ -134,6 +137,102 @@ class StockAdjustmentTest extends TestCase
             ->assertSessionHasErrors();
 
         $this->assertSame(3, $product->fresh()->stock);
+    }
+
+    public function test_a_stock_out_cannot_reach_past_the_sellable_total(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $product = Product::factory()->create(['stock' => 0]);
+
+        // 5 units have lapsed. They are on the shelf and counted in stock, but
+        // first-expiry-first-out is not allowed to draw on them.
+        $product->batches()->create(['expiry_date' => now()->subDay(), 'quantity' => 5]);
+        $product->batches()->create(['expiry_date' => now()->addMonths(6), 'quantity' => 10]);
+        $product->forceFill(['stock' => 15])->save();
+
+        $this->actingAs($admin)
+            ->post(route('admin.inventory.store', $product), [
+                'type' => InventoryMovementType::StockOut->value,
+                'quantity' => 15,
+                'reason' => 'Write off',
+            ])
+            ->assertSessionHasErrors('quantity');
+
+        // Nothing moved: the stock is untouched and no movement was logged.
+        $this->assertSame(15, $product->fresh()->stock);
+        $this->assertSame(0, InventoryMovement::count());
+    }
+
+    public function test_a_stock_out_at_the_sellable_total_still_goes_through(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $product = Product::factory()->create(['stock' => 0]);
+
+        $lapsed = $product->batches()->create(['expiry_date' => now()->subDay(), 'quantity' => 5]);
+        $product->batches()->create(['expiry_date' => now()->addMonths(6), 'quantity' => 10]);
+        $product->forceFill(['stock' => 15])->save();
+
+        $this->actingAs($admin)
+            ->post(route('admin.inventory.store', $product), [
+                'type' => InventoryMovementType::StockOut->value,
+                'quantity' => 10,
+                'reason' => 'Shrinkage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(5, $product->fresh()->stock);
+        $this->assertSame(5, (int) $lapsed->fresh()->quantity);
+    }
+
+    public function test_a_lapsed_lot_can_still_be_written_off_by_naming_it(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $product = Product::factory()->create(['stock' => 0]);
+
+        $lapsed = $product->batches()->create(['expiry_date' => now()->subDay(), 'quantity' => 5]);
+        $product->batches()->create(['expiry_date' => now()->addMonths(6), 'quantity' => 10]);
+        $product->forceFill(['stock' => 15])->save();
+
+        $this->actingAs($admin)
+            ->post(route('admin.inventory.store', $product), [
+                'type' => InventoryMovementType::StockOut->value,
+                'quantity' => 5,
+                'reason' => 'Wrote off expired units',
+                'batch_id' => $lapsed->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(10, $product->fresh()->stock);
+        $this->assertSame(0, (int) $lapsed->fresh()->quantity);
+    }
+
+    public function test_a_stock_out_the_service_refuses_answers_with_a_flash_not_a_crash(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $product = Product::factory()->create(['stock' => 0]);
+        $product->batches()->create(['expiry_date' => now()->addMonths(6), 'quantity' => 15]);
+        $product->forceFill(['stock' => 15])->save();
+
+        // Validation sees 15 sellable and lets the request through. The service
+        // is the authority, and it can still come up short - two cashiers
+        // selling the same last units at once, or a lot lapsing between the two
+        // checks. That refusal must reach the form, not an error page.
+        $inventory = Mockery::mock(InventoryService::class);
+        $inventory->shouldReceive('decrease')
+            ->once()
+            ->andThrow(new InsufficientStockException($product, 15, 10, 5));
+        $this->app->instance(InventoryService::class, $inventory);
+
+        $response = $this->actingAs($admin)
+            ->post(route('admin.inventory.store', $product), [
+                'type' => InventoryMovementType::StockOut->value,
+                'quantity' => 15,
+                'reason' => 'Shrinkage',
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+        $this->assertSame(15, $product->fresh()->stock);
     }
 
     public function test_a_reason_is_required_for_every_movement(): void

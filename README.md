@@ -4,7 +4,7 @@ A point-of-sale and inventory management application built with Laravel 12, Boot
 
 ## Features
 
-- **Till** - name/description search, cart with quantity edits, percentage or fixed discounts, cash/card/mobile payments, change calculation and printable receipts.
+- **Till** - name/description search, cart with quantity edits, cash/card/mobile payments, change calculation and printable receipts.
 - **Orders** - searchable history with status and payment filters. Staff only ever see their own sales; admins see everything.
 - **Inventory** - stock-in, stock-out and absolute adjustments, a filterable movement log, low-stock and out-of-stock alerts, CSV export.
 - **Batch expiry dates** - stock is held as delivery lots, each with its own expiration date and optional batch number. Sales draw first-expiry-first-out and never touch a lapsed lot; cancelling or refunding puts units back on the exact lots they left. Expired and expiring-soon warnings appear on the till, the inventory list, the product page, the dashboard and the reports.
@@ -88,7 +88,7 @@ The last active administrator cannot be demoted, deactivated or deleted, and an 
 
 | Area            | Where                                                                                  |
 |-----------------|----------------------------------------------------------------------------------------|
-| Checkout        | `app/Services/CheckoutService.php` - pricing, discounts, tax, stock decrement in a transaction |
+| Checkout        | `app/Services/OrderService.php` - pricing, tax, stock decrement in a transaction |
 | Stock           | `app/Services/InventoryService.php` - every quantity change writes an `inventory_movements` row |
 | Batch expiry    | `app/Models/ProductBatch.php` + `InventoryService` - lots, FEFO sale allocation, exact-lot returns |
 | Refunds         | `app/Services/RefundService.php` - per-line refunds, restock, order status roll-up      |

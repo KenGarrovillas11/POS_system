@@ -38,6 +38,47 @@ class ReportingTest extends TestCase
         return ['from' => $today, 'to' => $today];
     }
 
+    /**
+     * Chart series travel in data-* attributes and are read back with
+     * JSON.parse(). They therefore have to be raw JSON: Illuminate's Js::from()
+     * wraps its output in a JSON.parse() *call*, which is only valid inside a
+     * <script> and silently killed every chart on the site when used in an
+     * attribute. See the dailyChart / revenueChart / salesChart canvases.
+     */
+    public function test_chart_series_are_emitted_as_raw_json(): void
+    {
+        $admin = $this->admin();
+        $cola = Product::factory()->priced(1, 2)->create(['stock' => 10]);
+        $this->sellThroughPos($cola, 1);
+
+        $pages = [
+            'admin.reports.sales' => 'dailyChart',
+            'admin.reports.revenue' => 'revenueChart',
+            'admin.dashboard' => 'salesChart',
+        ];
+
+        foreach ($pages as $route => $canvasId) {
+            $response = $this->actingAs($admin)->get(route($route))->assertOk();
+
+            $html = $response->getContent();
+
+            $this->assertStringContainsString('id="'.$canvasId.'"', $html, "missing the {$canvasId} canvas");
+
+            // Every series attribute must open with the array, never JSON.parse(.
+            preg_match_all('/data-(labels|gross|net|revenue|orders)="([^"]{0,40})/', $html, $matches, PREG_SET_ORDER);
+
+            $this->assertNotEmpty($matches, "no chart data attributes found on {$route}");
+
+            foreach ($matches as [, $key, $value]) {
+                $this->assertStringStartsWith(
+                    '[',
+                    html_entity_decode($value),
+                    "{$route}: data-{$key} must start with a JSON array",
+                );
+            }
+        }
+    }
+
     public function test_the_dashboard_summarises_the_shop(): void
     {
         $admin = $this->admin();

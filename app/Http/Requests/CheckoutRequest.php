@@ -21,9 +21,19 @@ class CheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'payment_method' => ['required', Rule::in(array_column(PaymentMethod::cases(), 'value'))],
+            // Only the methods the till offers, so a hand-rolled POST cannot
+            // resurrect a withdrawn one.
+            'payment_method' => ['required', Rule::in(array_keys(PaymentMethod::selectable()))],
             'paid_amount' => ['required', 'numeric', 'min:0', 'max:9999999'],
             'note' => ['nullable', 'string', 'max:255'],
+            // An e-wallet sale has to be matched against the customer's receipt
+            // before it counts as paid, so both of these are demanded for it.
+            // accepted_if rather than accepted + required_if: "accepted" is an
+            // implicit rule, so a plain accepted would also reject cash sales
+            // where the box is never sent. The reference is digits only, so a
+            // mistyped letter cannot quietly pass as a valid one.
+            'payment_reference' => ['nullable', 'string', 'max:100', 'regex:/^\d+$/', 'required_if:payment_method,mobile'],
+            'payment_verified' => ['nullable', 'accepted_if:payment_method,mobile'],
         ];
     }
 
@@ -64,6 +74,9 @@ class CheckoutRequest extends FormRequest
     {
         return [
             'paid_amount.min' => 'The amount paid cannot be negative.',
+            'payment_reference.required_if' => 'Enter the GCash / e-wallet reference number for this sale.',
+            'payment_reference.regex' => 'The reference number must be numbers only, with no letters or symbols.',
+            'payment_verified.accepted_if' => 'Confirm the e-wallet payment was received before completing the sale.',
         ];
     }
 

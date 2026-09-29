@@ -59,5 +59,10 @@
                 </div>
             @endif
         </div>
+
+        <div class="pos-cart-subtotal">
+            <span class="small text-body-secondary">Subtotal ({{ $totals['quantity'] }} item(s))</span>
+            <span class="fw-bold money">{{ \App\Models\Setting::money($totals['subtotal']) }}</span>
+        </div>
     @endforeach
 @endif

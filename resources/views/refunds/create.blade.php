@@ -22,7 +22,7 @@
         Every item on this order has already been refunded.
     </div>
 @else
-    <form method="POST" action="{{ route('admin.refunds.store', $order) }}" id="refund-form"
+    <form method="POST" action="{{ route('refunds.store', $order) }}" id="refund-form"
           data-currency="{{ \App\Models\Setting::currency() }}">
         @csrf
 
@@ -102,9 +102,9 @@
                         <div class="mb-3">
                             <label for="method" class="form-label">Refund method <span class="text-danger">*</span></label>
                             <select class="form-select @error('method') is-invalid @enderror" id="method" name="method" required>
-                                @foreach (\App\Enums\PaymentMethod::cases() as $method)
-                                    <option value="{{ $method->value }}" @selected(old('method', \App\Enums\PaymentMethod::Cash->value) === $method->value)>
-                                        {{ $method->label() }}
+                                @foreach (\App\Enums\PaymentMethod::selectable() as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('method', \App\Enums\PaymentMethod::Cash->value) === $value)>
+                                        {{ $label }}
                                     </option>
                                 @endforeach
                             </select>
@@ -191,7 +191,15 @@
         if (!hasItems) {
             event.preventDefault();
             alert('Select at least one item to refund.');
+            return;
         }
+
+        // Only the chosen lines travel. The rest stay in the DOM so the
+        // cashier can still adjust them, but a disabled input is not submitted,
+        // so untouched rows cannot turn into validation errors.
+        inputs.forEach((input) => {
+            input.disabled = parseInt(input.value || '0', 10) < 1;
+        });
     });
 
     recalculate();

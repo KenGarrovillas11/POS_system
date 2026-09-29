@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\InventoryMovementType;
+use App\Exceptions\InsufficientStockException;
 use App\Http\Requests\StockAdjustmentRequest;
 use App\Models\Category;
 use App\Models\InventoryMovement;
@@ -137,37 +138,44 @@ class InventoryController extends Controller
         $user = $request->user();
         $batch = $this->resolveBatch($request, $product);
 
-        $movements = DB::transaction(function () use ($product, $type, $reason, $request, $user, $batch) {
-            return match ($type) {
-                InventoryMovementType::StockIn => $this->inventory->increase(
-                    $product,
-                    (int) $request->validated('quantity'),
-                    $type,
-                    $reason,
-                    null,
-                    $user,
-                    $batch,
-                    $request->newBatch(),
-                ),
-                InventoryMovementType::StockOut => $this->inventory->decrease(
-                    $product,
-                    (int) $request->validated('quantity'),
-                    $type,
-                    $reason,
-                    null,
-                    $user,
-                    $batch,
-                ),
-                default => $this->inventory->setStock(
-                    $product,
-                    (int) $request->validated('new_stock'),
-                    $reason,
-                    $user,
-                    $batch,
-                    $request->newBatch(),
-                ),
-            };
-        });
+        // A removal can fail on stock it cannot cover - lapsed goods are on the
+        // shelf but off limits to first-expiry-first-out, so a plain stock-out
+        // can come up short. Say so on the form instead of returning a 500.
+        try {
+            $movements = DB::transaction(function () use ($product, $type, $reason, $request, $user, $batch) {
+                return match ($type) {
+                    InventoryMovementType::StockIn => $this->inventory->increase(
+                        $product,
+                        (int) $request->validated('quantity'),
+                        $type,
+                        $reason,
+                        null,
+                        $user,
+                        $batch,
+                        $request->newBatch(),
+                    ),
+                    InventoryMovementType::StockOut => $this->inventory->decrease(
+                        $product,
+                        (int) $request->validated('quantity'),
+                        $type,
+                        $reason,
+                        null,
+                        $user,
+                        $batch,
+                    ),
+                    default => $this->inventory->setStock(
+                        $product,
+                        (int) $request->validated('new_stock'),
+                        $reason,
+                        $user,
+                        $batch,
+                        $request->newBatch(),
+                    ),
+                };
+            });
+        } catch (InsufficientStockException|\InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         $product->refresh();
 

@@ -187,6 +187,47 @@ class ReceiptTest extends TestCase
             ->assertSee('11:15 AM');
     }
 
+    public function test_the_receipt_prints_the_e_wallet_reference(): void
+    {
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(1, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Mobile->value,
+            'paid_amount' => 25,
+            'payment_reference' => '4412077890',
+            'payment_verified' => '1',
+        ]);
+
+        $order = Order::latest()->first();
+
+        $this->actingAs($cashier)
+            ->get(route('orders.receipt', $order))
+            ->assertOk()
+            ->assertSee('4412077890')
+            ->assertSee('Reference');
+    }
+
+    public function test_the_receipt_omits_the_reference_row_for_cash(): void
+    {
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(1, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'paid_amount' => 25,
+        ]);
+
+        $order = Order::latest()->first();
+
+        $this->actingAs($cashier)
+            ->get(route('orders.receipt', $order))
+            ->assertOk()
+            ->assertDontSee('Reference');
+    }
+
     public function test_a_refunded_receipt_shows_the_refund_and_the_net_total(): void
     {
         $admin = User::factory()->admin()->create();

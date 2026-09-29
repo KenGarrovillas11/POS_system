@@ -90,30 +90,176 @@ class CheckoutTest extends TestCase
         $this->assertSame(0, app(CartService::class)->count());
     }
 
-    public function test_a_percentage_discount_is_applied_before_tax(): void
+    public function test_a_mobile_sale_is_stored_with_its_reference(): void
     {
         $this->seedSettings();
 
         $cashier = User::factory()->staff()->create();
         $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
 
-        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 2]);
-        $this->actingAs($cashier)->postJson(route('pos.cart.discount'), [
-            'discount_type' => 'percentage',
-            'discount_value' => 10,
-        ])->assertOk();
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
 
         $this->actingAs($cashier)->post(route('pos.checkout'), [
-            'payment_method' => PaymentMethod::Cash->value,
-            'paid_amount' => 40,
-        ]);
+            'payment_method' => PaymentMethod::Mobile->value,
+            'paid_amount' => 25,
+            'payment_reference' => '8892134457',
+            'payment_verified' => '1',
+        ])->assertRedirect();
 
         $order = Order::sole();
 
-        // 40.00 subtotal - 10% = 36.00 taxable, + 10% tax = 39.60.
-        $this->assertEquals(40.00, (float) $order->subtotal);
-        $this->assertEquals(4.00, (float) $order->discount_amount);
-        $this->assertEquals(39.60, (float) $order->total);
+        $this->assertSame(PaymentMethod::Mobile, $order->payment_method);
+        $this->assertSame('8892134457', $order->payment_reference);
+        $this->assertSame(9, $product->fresh()->stock);
+    }
+
+    public function test_a_mobile_sale_without_a_reference_is_rejected(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Mobile->value,
+            'paid_amount' => 25,
+            'payment_verified' => '1',
+        ])->assertSessionHasErrors('payment_reference');
+
+        $this->assertSame(0, Order::count());
+        $this->assertSame(10, $product->fresh()->stock);
+    }
+
+    public function test_a_mobile_sale_that_was_not_confirmed_is_rejected(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Mobile->value,
+            'paid_amount' => 25,
+            'payment_reference' => '8892134457',
+        ])->assertSessionHasErrors('payment_verified');
+
+        $this->assertSame(0, Order::count());
+        $this->assertSame(10, $product->fresh()->stock);
+    }
+
+    public function test_a_reference_containing_letters_or_symbols_is_rejected(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        foreach (['GCASH889213', '889-213-4457', '889 213 4457', 'ref#88921', '889213₱'] as $bad) {
+            $this->actingAs($cashier)->post(route('pos.checkout'), [
+                'payment_method' => PaymentMethod::Mobile->value,
+                'paid_amount' => 25,
+                'payment_reference' => $bad,
+                'payment_verified' => '1',
+            ])->assertSessionHasErrors('payment_reference');
+        }
+
+        $this->assertSame(0, Order::count());
+        $this->assertSame(10, $product->fresh()->stock);
+    }
+
+    public function test_a_digits_only_reference_is_accepted(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Mobile->value,
+            'paid_amount' => 25,
+            'payment_reference' => '8892134457001234',
+            'payment_verified' => '1',
+        ])->assertRedirect();
+
+        $this->assertSame('8892134457001234', Order::sole()->payment_reference);
+    }
+
+    public function test_a_cash_sale_needs_no_reference_and_stores_none(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'paid_amount' => 25,
+        ])->assertRedirect();
+
+        $this->assertNull(Order::sole()->payment_reference);
+    }
+
+    public function test_a_reference_supplied_on_a_cash_sale_is_not_stored(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        // A leftover value from the e-wallet form must not stick to a cash sale.
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'paid_amount' => 25,
+            'payment_reference' => '8892134457',
+            'payment_verified' => '1',
+        ])->assertRedirect();
+
+        $this->assertNull(Order::sole()->payment_reference);
+    }
+
+    public function test_a_withdrawn_payment_method_cannot_be_submitted(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        $product = Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)->postJson(route('pos.cart.store'), ['product_id' => $product->id, 'quantity' => 1]);
+
+        $this->actingAs($cashier)->post(route('pos.checkout'), [
+            'payment_method' => 'other',
+            'paid_amount' => 25,
+        ])->assertSessionHasErrors('payment_method');
+
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_the_till_offers_cash_card_and_mobile_only(): void
+    {
+        $this->seedSettings();
+
+        $cashier = User::factory()->staff()->create();
+        Product::factory()->priced(0, 20.00)->create(['stock' => 10]);
+
+        $this->actingAs($cashier)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('Cash')
+            ->assertSee('Card')
+            ->assertSee('Mobile / E-Wallet')
+            ->assertDontSee('>Other<', escape: false);
     }
 
     public function test_checkout_is_blocked_when_the_tendered_amount_is_short(): void

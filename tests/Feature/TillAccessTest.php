@@ -84,10 +84,6 @@ class TillAccessTest extends TestCase
             ->assertRedirect(route('admin.dashboard'));
 
         $this->actingAs($admin)
-            ->post(route('pos.cart.discount'), ['type' => 'percentage', 'value' => 100])
-            ->assertRedirect(route('admin.dashboard'));
-
-        $this->actingAs($admin)
             ->delete(route('pos.cart.clear'))
             ->assertRedirect(route('admin.dashboard'));
     }
@@ -104,7 +100,6 @@ class TillAccessTest extends TestCase
             ['patch', route('pos.cart.update', $product)],
             ['delete', route('pos.cart.update', $product)],
             ['delete', route('pos.cart.clear')],
-            ['post', route('pos.cart.discount')],
             ['post', route('pos.checkout')],
         ];
 

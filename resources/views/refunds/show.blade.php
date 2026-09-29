@@ -6,14 +6,20 @@
 
 @section('content')
 <div class="d-flex flex-wrap gap-2 mb-3">
-    <a href="{{ route('admin.refunds.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Refunds
-    </a>
+    @if (auth()->user()->isAdmin())
+        <a href="{{ route('admin.refunds.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Refunds
+        </a>
+    @else
+        <a href="{{ route('orders.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Orders
+        </a>
+    @endif
     <a href="{{ route('orders.show', $refund->order) }}" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-receipt me-1"></i>View Order
     </a>
     @if ($refund->order->refundableItems->isNotEmpty())
-        <a href="{{ route('admin.refunds.create', $refund->order) }}" class="btn btn-warning btn-sm">
+        <a href="{{ route('refunds.create', $refund->order) }}" class="btn btn-warning btn-sm">
             <i class="bi bi-plus-lg me-1"></i>Refund More
         </a>
     @endif

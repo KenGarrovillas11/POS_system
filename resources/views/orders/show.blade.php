@@ -13,12 +13,13 @@
         <i class="bi bi-receipt me-1"></i>View / Print Receipt
     </a>
 
+    @if (! $order->isCancelled() && (float) $order->refunded_amount === 0.0 && (auth()->user()->isAdmin() || $order->user_id === auth()->id()))
+        <a href="{{ route('refunds.create', $order) }}" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Refund / Return
+        </a>
+    @endif
+
     @if (auth()->user()->isAdmin())
-        @if (! $order->isCancelled() && (float) $order->refunded_amount === 0.0)
-            <a href="{{ route('admin.refunds.create', $order) }}" class="btn btn-outline-warning btn-sm">
-                <i class="bi bi-arrow-counterclockwise me-1"></i>Refund / Return
-            </a>
-        @endif
         @if (! $order->isCancelled() && (float) $order->refunded_amount === 0.0)
             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal">
                 <i class="bi bi-x-circle me-1"></i>Cancel Order
@@ -143,8 +144,8 @@
                                 <td>{{ $refund->processed_by }}</td>
                                 <td class="text-end money text-danger">- {{ \App\Models\Setting::money($refund->amount) }}</td>
                                 <td class="text-end">
-                                    @if (auth()->user()->isAdmin())
-                                        <a href="{{ route('admin.refunds.show', $refund) }}" class="btn btn-sm btn-outline-secondary">
+                                    @if (auth()->user()->isAdmin() || $order->user_id === auth()->id())
+                                        <a href="{{ route('refunds.show', $refund) }}" class="btn btn-sm btn-outline-secondary">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                     @endif

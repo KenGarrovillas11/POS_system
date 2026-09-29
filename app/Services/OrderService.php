@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\DiscountType;
 use App\Enums\InventoryMovementType;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
@@ -22,7 +21,7 @@ class OrderService
     /**
      * Create an order, its items and the matching stock movements atomically.
      *
-     * @param  array<string, mixed>  $cart  Raw cart payload (items, discount, note).
+     * @param  array<string, mixed>  $cart  Raw cart payload (items, note).
      * @param  array<string, mixed>  $payment  paid_amount, payment_method, note.
      *
      * @throws InsufficientStockException
@@ -83,30 +82,24 @@ class OrderService
 
             $subtotal = round($subtotal, 2);
 
-            $discountType = DiscountType::tryFrom($cart['discount_type'] ?? 'fixed') ?? DiscountType::Fixed;
-            $discountValue = max(0, (float) ($cart['discount_value'] ?? 0));
-
-            $discountAmount = match ($discountType) {
-                DiscountType::Percentage => round($subtotal * min($discountValue, 100) / 100, 2),
-                DiscountType::Fixed => min(round($discountValue, 2), $subtotal),
-            };
-
-            $taxable = round(max(0, $subtotal - $discountAmount), 2);
             $taxRate = Setting::taxRate();
-            $taxAmount = round($taxable * $taxRate / 100, 2);
-            $total = round($taxable + $taxAmount, 2);
+            $taxAmount = round($subtotal * $taxRate / 100, 2);
+            $total = round($subtotal + $taxAmount, 2);
 
             $paid = round(max(0, (float) ($payment['paid_amount'] ?? $total)), 2);
             $method = PaymentMethod::tryFrom($payment['payment_method'] ?? 'cash') ?? PaymentMethod::Cash;
+
+            // Only an e-wallet sale has a sender reference to keep; the request
+            // has already insisted on one and on the cashier confirming receipt.
+            $reference = $method === PaymentMethod::Mobile
+                ? trim((string) ($payment['payment_reference'] ?? '')) ?: null
+                : null;
 
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
                 'user_id' => $cashier->getAuthIdentifier(),
                 'status' => OrderStatus::Completed,
                 'subtotal' => $subtotal,
-                'discount_type' => $discountType,
-                'discount_value' => $discountValue,
-                'discount_amount' => $discountAmount,
                 'tax_rate' => $taxRate,
                 'tax_amount' => $taxAmount,
                 'total' => $total,
@@ -114,6 +107,7 @@ class OrderService
                 'paid_amount' => $paid,
                 'change_amount' => round(max(0, $paid - $total), 2),
                 'payment_method' => $method,
+                'payment_reference' => $reference,
                 'customer_note' => $payment['note'] ?? ($cart['note'] ?? null),
             ]);
 
@@ -141,7 +135,6 @@ class OrderService
                     'unit_cost' => (float) $product->cost_price,
                     'quantity' => $quantity,
                     'refunded_quantity' => 0,
-                    'discount_amount' => 0,
                     'line_total' => $lineTotals[$productId],
                 ]);
 

@@ -116,9 +116,9 @@
                 <div style="height: 320px;">
                     <canvas id="salesChart"
                             data-currency="{{ \App\Models\Setting::currency() }}"
-                            data-labels="{{ \Illuminate\Support\Js::from($chart['labels']) }}"
-                            data-revenue="{{ \Illuminate\Support\Js::from($chart['revenue']) }}"
-                            data-orders="{{ \Illuminate\Support\Js::from($chart['orders']) }}"></canvas>
+                            data-labels="{{ json_encode($chart['labels']) }}"
+                            data-revenue="{{ json_encode($chart['revenue']) }}"
+                            data-orders="{{ json_encode($chart['orders']) }}"></canvas>
                 </div>
             </div>
         </div>

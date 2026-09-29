@@ -100,9 +100,9 @@
                 <div style="height: 280px;">
                     <canvas id="revenueChart"
                             data-currency="{{ \App\Models\Setting::currency() }}"
-                            data-labels="{{ \Illuminate\Support\Js::from(collect($byDay)->pluck('day')->map(fn ($d) => \Illuminate\Support\Carbon::parse($d)->format('M j'))->all()) }}"
-                            data-net="{{ \Illuminate\Support\Js::from(collect($byDay)->pluck('net')->map(fn ($v) => (float) $v)->all()) }}"
-                            data-orders="{{ \Illuminate\Support\Js::from(collect($byDay)->pluck('orders')->map(fn ($v) => (int) $v)->all()) }}"></canvas>
+                            data-labels="{{ json_encode(collect($byDay)->pluck('day')->map(fn ($d) => \Illuminate\Support\Carbon::parse($d)->format('M j'))->all()) }}"
+                            data-net="{{ json_encode(collect($byDay)->pluck('net')->map(fn ($v) => (float) $v)->all()) }}"
+                            data-orders="{{ json_encode(collect($byDay)->pluck('orders')->map(fn ($v) => (int) $v)->all()) }}"></canvas>
                 </div>
             </div>
         </div>

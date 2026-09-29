@@ -9,7 +9,7 @@
     $statuses = collect(\App\Enums\OrderStatus::cases())->mapWithKeys(
         fn (\App\Enums\OrderStatus $status) => [$status->value => $status->label()]
     )->all();
-    $methods = \App\Enums\PaymentMethod::options();
+    $methods = \App\Enums\PaymentMethod::selectable();
 @endphp
 @include('reports._range', ['route' => 'admin.reports.sales', 'statuses' => $statuses, 'methods' => $methods])
 
@@ -119,9 +119,9 @@
                 <div style="height: 280px;">
                     <canvas id="dailyChart"
                             data-currency="{{ \App\Models\Setting::currency() }}"
-                            data-labels="{{ \Illuminate\Support\Js::from(collect($byDay)->pluck('day')->map(fn ($d) => \Illuminate\Support\Carbon::parse($d)->format('M j'))->all()) }}"
-                            data-gross="{{ \Illuminate\Support\Js::from(collect($byDay)->pluck('gross')->map(fn ($v) => (float) $v)->all()) }}"
-                            data-net="{{ \Illuminate\Support\Js::from(collect($byDay)->pluck('net')->map(fn ($v) => (float) $v)->all()) }}"></canvas>
+                            data-labels="{{ json_encode(collect($byDay)->pluck('day')->map(fn ($d) => \Illuminate\Support\Carbon::parse($d)->format('M j'))->all()) }}"
+                            data-gross="{{ json_encode(collect($byDay)->pluck('gross')->map(fn ($v) => (float) $v)->all()) }}"
+                            data-net="{{ json_encode(collect($byDay)->pluck('net')->map(fn ($v) => (float) $v)->all()) }}"></canvas>
                 </div>
             </div>
         </div>

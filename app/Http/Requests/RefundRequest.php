@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\PaymentMethod;
+use App\Models\Order;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -11,7 +12,17 @@ class RefundRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isAdmin() === true;
+        $user = $this->user();
+        $order = $this->route('order');
+
+        if (! $user) {
+            return false;
+        }
+
+        // Admins may return anything; a cashier may only return a sale they
+        // rang up themselves.
+        return $user->isAdmin()
+            || ($order instanceof Order && $order->user_id === $user->getAuthIdentifier());
     }
 
     /**
@@ -21,10 +32,14 @@ class RefundRequest extends FormRequest
     {
         return [
             'reason' => ['required', 'string', 'max:255'],
-            'method' => ['required', Rule::in(array_column(PaymentMethod::cases(), 'value'))],
+            'method' => ['required', Rule::in(array_keys(PaymentMethod::selectable()))],
             'note' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*' => ['required', 'integer', 'min:1'],
+            // The form posts one box per line, so every product the cashier did
+            // not pick arrives as 0. That is "not selected", not a bad value, so
+            // the floor is 0 here and the real check is below: at least one line
+            // has to carry a quantity.
+            'items.*' => ['required', 'integer', 'min:0'],
         ];
     }
 
@@ -41,6 +56,9 @@ class RefundRequest extends FormRequest
             }
 
             $requested = (array) $this->input('items', []);
+
+            // Drop the untouched lines, then insist at least one survives.
+            $requested = array_filter($requested, fn ($quantity) => (int) $quantity > 0);
 
             if ($requested === []) {
                 $validator->errors()->add('items', 'Select at least one item to refund.');

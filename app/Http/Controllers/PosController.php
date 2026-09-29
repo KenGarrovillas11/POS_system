@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\DiscountType;
 use App\Exceptions\InsufficientStockException;
 use App\Http\Requests\CheckoutRequest;
 use App\Models\Category;
@@ -43,7 +42,6 @@ class PosController extends Controller
         return [
             'cartItems' => $this->cart->items(),
             'totals' => $this->cart->totals(),
-            'discountTypes' => DiscountType::options(),
         ];
     }
 
@@ -205,26 +203,6 @@ class PosController extends Controller
         $this->cart->clear();
 
         return response()->json($this->cartPayload('Cart cleared.'));
-    }
-
-    public function discount(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'discount_type' => ['required', Rule::in(array_column(DiscountType::cases(), 'value'))],
-            'discount_value' => ['required', 'numeric', 'min:0'],
-        ]);
-
-        $type = DiscountType::from($validated['discount_type']);
-
-        if ($type === DiscountType::Percentage && $validated['discount_value'] > 100) {
-            return response()->json([
-                'message' => 'A percentage discount cannot exceed 100%.',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $this->cart->setDiscount($type, (float) $validated['discount_value']);
-
-        return response()->json($this->cartPayload('Discount applied.'));
     }
 
     public function checkout(CheckoutRequest $request): RedirectResponse

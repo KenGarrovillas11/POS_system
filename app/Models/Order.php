@@ -33,6 +33,7 @@ class Order extends Model
         'paid_amount',
         'change_amount',
         'payment_method',
+        'payment_reference',
         'customer_note',
         'cancelled_at',
         'cancel_reason',

@@ -66,7 +66,6 @@ Route::middleware('auth')->group(function () {
         Route::patch('cart/{product}', [PosController::class, 'update'])->name('cart.update');
         Route::delete('cart/{product}', [PosController::class, 'destroy'])->name('cart.destroy');
         Route::delete('cart', [PosController::class, 'clear'])->name('cart.clear');
-        Route::post('cart/discount', [PosController::class, 'discount'])->name('cart.discount');
         Route::post('checkout', [PosController::class, 'checkout'])->name('checkout');
     });
 
@@ -81,6 +80,18 @@ Route::middleware('auth')->group(function () {
     Route::get('orders/{order}/receipt', [OrderController::class, 'receipt'])->name('orders.receipt');
     Route::put('orders/{order}', [OrderController::class, 'update'])->name('orders.update');
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+
+    /*
+    |----------------------------------------------------------------------
+    | Refunds & returns
+    |   Staff may return the sales they rang up themselves; RefundController
+    |   scopes them to their own orders, admins may return anything. The
+    |   admin-prefixed equivalents further down stay for the oversight screens.
+    |----------------------------------------------------------------------
+    */
+    Route::get('orders/{order}/refund', [RefundController::class, 'create'])->name('refunds.create');
+    Route::post('orders/{order}/refund', [RefundController::class, 'store'])->name('refunds.store');
+    Route::get('refunds/{refund}', [RefundController::class, 'show'])->name('refunds.show');
 
     /*
     |----------------------------------------------------------------------

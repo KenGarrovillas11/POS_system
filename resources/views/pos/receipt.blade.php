@@ -28,6 +28,11 @@
             <a href="{{ route('orders.show', $order) }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-1"></i>Back to Order
             </a>
+            @if (! $order->isCancelled() && (float) $order->refunded_amount === 0.0 && (auth()->user()->isAdmin() || $order->user_id === auth()->id()))
+                <a href="{{ route('refunds.create', $order) }}" class="btn btn-outline-warning">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Refund / Return
+                </a>
+            @endif
             @if (auth()->user()->isStaff())
                 <a href="{{ route('pos.index') }}" class="btn btn-success">
                     <i class="bi bi-plus-circle me-1"></i>New Sale
@@ -81,6 +86,12 @@
                     <span>Payment</span>
                     <span>{{ $order->payment_method->label() }}</span>
                 </div>
+                @if ($order->payment_reference)
+                    <div class="receipt-line">
+                        <span>Reference</span>
+                        <span>{{ $order->payment_reference }}</span>
+                    </div>
+                @endif
 
                 <hr>
 

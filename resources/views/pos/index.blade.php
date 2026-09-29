@@ -115,6 +115,13 @@
 
             <div class="card-footer bg-body-tertiary">
                 @include('pos.partials.cart-totals')
+
+                {{-- Kept outside #cart-totals-area: that block is re-rendered on
+                     every cart change, which would detach this button and drop
+                     its click handler. --}}
+                <button type="button" class="btn btn-success btn-lg w-100 mt-3" id="open-checkout">
+                    <i class="bi bi-cash-coin me-1"></i>Take Payment
+                </button>
             </div>
         </div>
     </div>
@@ -139,20 +146,54 @@
                 <div class="mb-3">
                     <label for="payment_method" class="form-label">Payment Method <span class="text-danger">*</span></label>
                     <select class="form-select @error('payment_method') is-invalid @enderror" id="payment_method" name="payment_method" required>
-                        @foreach (\App\Enums\PaymentMethod::options() as $value => $label)
+                        @foreach (\App\Enums\PaymentMethod::selectable() as $value => $label)
                             <option value="{{ $value }}" @selected(old('payment_method', 'cash') === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
                     @error('payment_method')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
+                {{-- An e-wallet transfer has to be matched against the customer's
+                     own receipt, so the sale is held until the cashier records
+                     the reference and ticks the box. --}}
+                <div class="border rounded p-3 mb-3 bg-body-tertiary d-none" id="mobile-verify">
+                    <div class="fw-semibold small mb-2">
+                        <i class="bi bi-phone me-1"></i>Verify the e-wallet payment
+                    </div>
+                    <label for="payment_reference" class="form-label small">Reference number <span class="text-danger">*</span></label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="100" autocomplete="off"
+                           class="form-control form-control-sm @error('payment_reference') is-invalid @enderror"
+                           id="payment_reference" name="payment_reference"
+                           placeholder="numbers only"
+                           value="{{ old('payment_reference') }}">
+                    @error('payment_reference')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+                    <div class="form-check mt-3">
+                        <input class="form-check-input @error('payment_verified') is-invalid @enderror"
+                               type="checkbox" value="1" id="payment_verified" name="payment_verified"
+                               @checked(old('payment_verified'))>
+                        <label class="form-check-label small" for="payment_verified">
+                            I confirm the payment was received in the e-wallet account.
+                        </label>
+                        @error('payment_verified')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label for="paid_amount" class="form-label">Amount Received <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0"
-                           class="form-control form-control-lg @error('paid_amount') is-invalid @enderror"
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text">{{ \App\Models\Setting::currency() }}</span>
+                    <input type="number" step="0.01" min="0" inputmode="decimal"
+                           class="form-control @error('paid_amount') is-invalid @enderror"
                            id="paid_amount" name="paid_amount" required
-                           value="{{ old('paid_amount', number_format($totals['total'], 2, '.', '')) }}">
-                    @error('paid_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                           placeholder="0.00"
+                           value="{{ old('paid_amount') }}">
+                        @error('paid_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="small text-danger mt-1 d-none" id="balance-due">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Still owed: <span class="money fw-semibold" id="balance-due-amount"></span>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center border rounded p-3 mb-3 bg-body-tertiary">
@@ -188,14 +229,22 @@
 
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
     const currency = @json(\App\Models\Setting::currency());
+    const cartUrl = @json(url('pos/cart'));
 
     const money = (value) => currency + Number(value || 0).toFixed(2);
 
     const cartItemsEl = document.getElementById('cart-items');
+    const totalsEl = document.getElementById('cart-totals-area');
     const cartCountEl = document.getElementById('cart-count');
     const dueAmountEl = document.getElementById('due-amount');
     const changeAmountEl = document.getElementById('change-amount');
     const paidInput = document.getElementById('paid_amount');
+    const methodSelect = document.getElementById('payment_method');
+    const mobileVerifyEl = document.getElementById('mobile-verify');
+    const referenceInput = document.getElementById('payment_reference');
+    const verifiedInput = document.getElementById('payment_verified');
+    const balanceEl = document.getElementById('balance-due');
+    const balanceAmountEl = document.getElementById('balance-due-amount');
     const checkoutForm = document.getElementById('checkout-form');
     const confirmBtn = document.getElementById('confirm-sale');
 
@@ -237,15 +286,16 @@
         return data;
     }
 
-    function applyTotals(next) {
+    function applyTotals(next, totalsHtml = null) {
         totals = next;
 
         cartCountEl.textContent = `${next.item_count} item(s)`;
         dueAmountEl.textContent = money(next.total);
 
-        // Keep the payable amount in step with the cart unless edited by hand.
-        if (paidInput && paidInput.dataset.touched !== '1') {
-            paidInput.value = Number(next.total).toFixed(2);
+        // The footer subtotal/tax/total block is rendered server-side, so swap
+        // in the fresh copy or it keeps showing the figures from page load.
+        if (totalsHtml && totalsEl) {
+            totalsEl.innerHTML = totalsHtml;
         }
 
         updateChange();
@@ -253,10 +303,53 @@
 
     function updateChange() {
         if (!paidInput || !changeAmountEl) return;
-        const change = (parseFloat(paidInput.value || '0') - Number(totals.total || 0));
+        const paid = parseFloat(paidInput.value || '0');
+        const change = paid - Number(totals.total || 0);
+        const short = change < -0.005;
+
         changeAmountEl.textContent = money(change > 0 ? change : 0);
         changeAmountEl.classList.toggle('text-success', change > 0);
-        changeAmountEl.classList.toggle('text-danger', change < 0);
+        changeAmountEl.classList.toggle('text-danger', short);
+
+        // An amount received below the total is never a valid sale, so say how
+        // much is still outstanding and hold the confirm button down.
+        if (balanceEl && balanceAmountEl) {
+            balanceEl.classList.toggle('d-none', !short);
+            balanceAmountEl.textContent = short ? money(Math.abs(change)) : '';
+        }
+
+        refreshCheckoutButton();
+    }
+
+    // Enable the checkout button only when the cart has something in it, the
+    // tendered amount covers the total, and an e-wallet sale has been verified.
+    function refreshCheckoutButton() {
+        if (!confirmBtn) return;
+        const short = paidInput && parseFloat(paidInput.value || '0') + 0.005 < Number(totals.total || 0);
+        confirmBtn.disabled = totals.item_count === 0 || short || !eWalletVerified();
+    }
+
+    /**
+     * True unless the method is an e-wallet that is still unverified.
+     */
+    function eWalletVerified() {
+        if (methodSelect?.value !== 'mobile') return true;
+        return Boolean(referenceInput?.value.trim()) && Boolean(verifiedInput?.checked);
+    }
+
+    function syncEWalletFields() {
+        const mobile = methodSelect?.value === 'mobile';
+
+        if (mobileVerifyEl) mobileVerifyEl.classList.toggle('d-none', !mobile);
+
+        if (!mobile && referenceInput && verifiedInput) {
+            // Stale values would otherwise ride along on a cash sale and be
+            // saved against it.
+            referenceInput.value = '';
+            verifiedInput.checked = false;
+        }
+
+        refreshCheckoutButton();
     }
 
     function renderCart(html) {
@@ -268,23 +361,23 @@
         cartItemsEl.querySelectorAll('[data-cart-qty]').forEach((input) => {
             input.addEventListener('change', async () => {
                 const productId = input.dataset.cartQty;
-                const data = await request(`/pos/cart/${productId}`, 'PATCH', {
+                const data = await request(`${cartUrl}/${productId}`, 'PATCH', {
                     quantity: parseInt(input.value || '0', 10),
                 });
 
                 if (data) {
                     renderCart(data.items_html);
-                    applyTotals(data.totals);
+                    applyTotals(data.totals, data.totals_html);
                 }
             });
         });
 
         cartItemsEl.querySelectorAll('[data-cart-remove]').forEach((button) => {
             button.addEventListener('click', async () => {
-                const data = await request(`/pos/cart/${button.dataset.cartRemove}`, 'DELETE');
+                const data = await request(`${cartUrl}/${button.dataset.cartRemove}`, 'DELETE');
                 if (data) {
                     renderCart(data.items_html);
-                    applyTotals(data.totals);
+                    applyTotals(data.totals, data.totals_html);
                 }
             });
         });
@@ -298,11 +391,11 @@
                 return;
             }
 
-            const data = await request('/pos/cart', 'POST', { product_id: parseInt(card.dataset.productId, 10) });
+            const data = await request(cartUrl, 'POST', { product_id: parseInt(card.dataset.productId, 10) });
 
             if (data) {
                 renderCart(data.items_html);
-                applyTotals(data.totals);
+                applyTotals(data.totals, data.totals_html);
             }
         };
 
@@ -315,35 +408,35 @@
         });
     });
 
-    // --- Discount --------------------------------------------------------
-    document.getElementById('apply-discount')?.addEventListener('click', async () => {
-        const type = document.getElementById('discount_type').value;
-        const value = parseFloat(document.getElementById('discount_value').value || '0');
-
-        const data = await request('/pos/cart/discount', 'POST', { discount_type: type, discount_value: value });
-
-        if (data) {
-            document.getElementById('cart-totals-area').innerHTML = data.totals_html;
-            applyTotals(data.totals);
-        }
-    });
-
     // --- Clear cart ------------------------------------------------------
     document.getElementById('clear-cart')?.addEventListener('click', async () => {
         if (!confirm('Remove all items from the current sale?')) return;
 
-        const data = await request('/pos/cart', 'DELETE');
+        const data = await request(cartUrl, 'DELETE');
         if (data) {
             renderCart(data.items_html);
-            applyTotals(data.totals);
+            applyTotals(data.totals, data.totals_html);
         }
     });
 
     // --- Payment ---------------------------------------------------------
-    paidInput?.addEventListener('input', () => {
-        paidInput.dataset.touched = '1';
-        updateChange();
+    paidInput?.addEventListener('input', updateChange);
+    methodSelect?.addEventListener('change', syncEWalletFields);
+
+    // Keep the box to digits as it is typed, so the cashier never sees a value
+    // that the server is going to reject. The rule is still enforced server
+    // side; this is only the friendlier half.
+    referenceInput?.addEventListener('input', () => {
+        const digits = referenceInput.value.replace(/\D/g, '');
+
+        if (digits !== referenceInput.value) {
+            referenceInput.value = digits;
+        }
+
+        refreshCheckoutButton();
     });
+
+    verifiedInput?.addEventListener('change', refreshCheckoutButton);
 
     document.getElementById('open-checkout')?.addEventListener('click', () => {
         if (totals.item_count === 0) {
@@ -358,13 +451,8 @@
         confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
     });
 
-    // Enable the checkout button only when the cart has something in it.
-    function refreshCheckoutButton() {
-        if (!confirmBtn) return;
-        confirmBtn.disabled = totals.item_count === 0;
-    }
-
-    refreshCheckoutButton();
+    updateChange();
+    syncEWalletFields();
     const observer = new MutationObserver(refreshCheckoutButton);
     observer.observe(cartCountEl, { childList: true, subtree: true, characterData: true });
 

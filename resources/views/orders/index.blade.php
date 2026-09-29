@@ -123,8 +123,8 @@
                         <a href="{{ route('orders.receipt', $order) }}" class="btn btn-sm btn-outline-secondary" title="View receipt">
                             <i class="bi bi-receipt"></i>
                         </a>
-                        @if (auth()->user()->isAdmin() && ! $order->isCancelled() && (float) $order->refunded_amount === 0.0)
-                            <a href="{{ route('admin.refunds.create', $order) }}" class="btn btn-sm btn-outline-warning ms-1" title="Refund">
+                        @if (! $order->isCancelled() && (float) $order->refunded_amount === 0.0 && (auth()->user()->isAdmin() || $order->user_id === auth()->id()))
+                            <a href="{{ route('refunds.create', $order) }}" class="btn btn-sm btn-outline-warning ms-1" title="Refund">
                                 <i class="bi bi-arrow-counterclockwise"></i>
                             </a>
                         @endif

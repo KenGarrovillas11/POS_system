@@ -11,6 +11,7 @@ use App\Services\RefundService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class RefundController extends Controller
 {
@@ -57,6 +58,8 @@ class RefundController extends Controller
 
     public function create(Request $request, Order $order): View
     {
+        $this->authorizeOrder($request, $order);
+
         abort_if($order->isCancelled(), 404, 'Cancelled orders cannot be refunded.');
 
         return view('refunds.create', [
@@ -68,6 +71,8 @@ class RefundController extends Controller
 
     public function store(RefundRequest $request, Order $order): RedirectResponse
     {
+        $this->authorizeOrder($request, $order);
+
         try {
             $refund = $this->refunds->refund(
                 $order,
@@ -82,7 +87,7 @@ class RefundController extends Controller
         }
 
         return redirect()
-            ->route('admin.refunds.show', $refund)
+            ->route('refunds.show', $refund)
             ->with('success', sprintf(
                 'Refund %s processed for %s. Stock has been restored.',
                 $refund->refund_number,
@@ -90,10 +95,28 @@ class RefundController extends Controller
             ));
     }
 
-    public function show(Refund $refund): View
+    public function show(Request $request, Refund $refund): View
     {
+        $refund->load('order');
+
+        $this->authorizeOrder($request, $refund->order);
+
         return view('refunds.show', [
             'refund' => $refund->load(['items.product', 'user', 'order.items']),
         ]);
+    }
+
+    /**
+     * Staff may only return their own sales; admins may return anything.
+     */
+    private function authorizeOrder(Request $request, Order $order): void
+    {
+        $user = $request->user();
+
+        abort_if(
+            ! $user->isAdmin() && $order->user_id !== $user->getAuthIdentifier(),
+            Response::HTTP_FORBIDDEN,
+            'You can only refund your own orders.',
+        );
     }
 }

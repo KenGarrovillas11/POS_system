@@ -7,6 +7,11 @@ enum PaymentMethod: string
     case Cash = 'cash';
     case Card = 'card';
     case Mobile = 'mobile';
+
+    /**
+     * Withdrawn from the till. The case stays so any historic row that still
+     * carries it keeps casting instead of blowing up.
+     */
     case Other = 'other';
 
     public function label(): string
@@ -31,5 +36,19 @@ enum PaymentMethod: string
         }
 
         return $options;
+    }
+
+    /**
+     * Methods a cashier may actually choose today.
+     *
+     * @return array<string, string>
+     */
+    public static function selectable(): array
+    {
+        return [
+            self::Cash->value => self::Cash->label(),
+            self::Card->value => self::Card->label(),
+            self::Mobile->value => self::Mobile->label(),
+        ];
     }
 }
